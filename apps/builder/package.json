@@ -9,7 +9,7 @@
     "test": "dotenv -e ./.env -e ../../.env -- vitest run"
   },
   "dependencies": {
-    "@auth/core": "^0.39.1",
+    "@auth/core": "^0.41.3",
     "@braintree/sanitize-url": "^7.0.1",
     "@dnd-kit/helpers": "^0.1.21",
     "@dnd-kit/react": "^0.1.21",
@@ -59,7 +59,7 @@
     "@uiw/react-codemirror": "^4.23.8",
     "@upstash/ratelimit": "^0.4.3",
     "@use-gesture/react": "^10.2.27",
-    "ai": "^4.3.19",
+    "ai": "^7.0.96",
     "browser-image-compression": "^2.0.2",
     "canvas-confetti": "^1.6.0",
     "codemirror": "^6.0.1",
@@ -81,7 +81,7 @@
     "next-auth": "^5.0.0-beta.28",
     "next-themes": "^0.4.6",
     "nextjs-cors": "^2.1.2",
-    "nodemailer": "^7.0.6",
+    "nodemailer": "^10.0.1",
     "nprogress": "^0.2.0",
     "nuqs": "^2.3.2",
     "openai": "^6.9.1",

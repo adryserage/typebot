@@ -47,7 +47,7 @@
     "ky": "^1.2.4",
     "libphonenumber-js": "1.10.37",
     "node-html-parser": "6.1.5",
-    "nodemailer": "^7.0.6",
+    "nodemailer": "^10.0.1",
     "openai": "^6.9.1",
     "qs": "^6.11.2",
     "stripe": "^17.1.0",

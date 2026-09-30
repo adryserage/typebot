@@ -1,6 +1,6 @@
+import { ORPCError } from "@orpc/server";
 import { createId } from "@paralleldrive/cuid2";
 import * as Sentry from "@sentry/nextjs";
-import { TRPCError } from "@trpc/server";
 import { BubbleBlockType } from "@typebot.io/blocks-bubbles/constants";
 import { isInputBlock } from "@typebot.io/blocks-core/helpers";
 import type { Block } from "@typebot.io/blocks-core/schemas/schema";
@@ -21,7 +21,15 @@ import type {
   TypebotInSession,
   TypebotInSessionV5,
 } from "@typebot.io/chat-session/schemas";
-import { byId, isDefined, isNotEmpty, omit } from "@typebot.io/lib/utils";
+import { datesAreOnSameDay } from "@typebot.io/lib/datesAreOnSameDay";
+import {
+  byId,
+  isDefined,
+  isNotDefined,
+  isNotEmpty,
+  omit,
+} from "@typebot.io/lib/utils";
+import prisma from "@typebot.io/prisma";
 import type { Prisma } from "@typebot.io/prisma/types";
 import { resultSchema } from "@typebot.io/results/schemas/results";
 import { parseVariablesInRichText } from "@typebot.io/rich-text/parseVariablesInRichText";
@@ -31,6 +39,7 @@ import {
   defaultSystemMessages,
 } from "@typebot.io/settings/constants";
 import { settingsSchema } from "@typebot.io/settings/schemas";
+import { getTemplateWithTypebotBySlug } from "@typebot.io/templates/typebots";
 import {
   defaultGuestAvatarIsEnabled,
   defaultHostAvatarIsEnabled,
@@ -47,6 +56,7 @@ import type {
   Variable,
 } from "@typebot.io/variables/schemas";
 import { transformPrefilledVariablesToVariables } from "@typebot.io/variables/transformPrefilledVariablesToVariables";
+import { after } from "next/server";
 import { NodeType, parse } from "node-html-parser";
 import { getStartingPoint } from "./getStartingPoint";
 import { isTypebotInSessionAtLeastV6 } from "./helpers/isTypebotInSessionAtLeastV6";
@@ -63,6 +73,10 @@ type StartParams =
       type: "preview";
       userId?: string;
     } & StartPreviewChatInput)
+  | ({
+      type: "template";
+      templateSlug: string;
+    } & Omit<StartPreviewChatInput, "typebotId" | "isProgressBarEnabled">)
   | ({
       type: "live";
     } & StartChatInput);
@@ -92,7 +106,8 @@ export const startSession = async ({
 
   const result = await getOrInitResult({
     resultId: startParams.type === "live" ? startParams.resultId : undefined,
-    isPreview: startParams.type === "preview",
+    typebotId: typebot.id,
+    isPreview: startParams.type !== "live",
     isRememberUserEnabled:
       typebot.settings.general?.rememberUser?.isEnabled ??
       (isDefined(typebot.settings.general?.isNewResultOnRefreshEnabled)
@@ -115,6 +130,8 @@ export const startSession = async ({
   let initialState: SessionState = {
     version: "3",
     workspaceId: typebot.workspaceId,
+    previewUserId:
+      startParams.type === "preview" ? startParams.userId : undefined,
     publicTypebotId: typebot.publicTypebotId,
     typebotsQueue: [
       {
@@ -149,22 +166,36 @@ export const startSession = async ({
       },
     ],
     dynamicTheme: parseDynamicThemeInState(typebot.theme),
+    webhookRoom:
+      startParams.type === "preview" && startParams.userId
+        ? `${startParams.userId}/${typebot.id}/webhooks`
+        : undefined,
     isStreamEnabled: startParams.isStreamEnabled,
     typingEmulation: typebot.settings.typingEmulation,
     allowedOrigins:
-      startParams.type === "preview"
-        ? undefined
-        : typebot.settings.security?.allowedOrigins,
+      startParams.type === "live"
+        ? typebot.settings.security?.allowedOrigins
+        : undefined,
     progressMetadata: initialSessionState?.whatsApp
       ? undefined
-      : typebot.theme.general?.progressBar?.isEnabled
+      : (
+            startParams.type === "preview" &&
+            isDefined(startParams.isProgressBarEnabled)
+              ? startParams.isProgressBarEnabled
+              : typebot.theme.general?.progressBar?.isEnabled
+          )
         ? { totalAnswers: 0 }
         : undefined,
+    ...(initialSessionState?.whatsApp
+      ? { whatsApp: initialSessionState.whatsApp }
+      : {}),
+    ...(isDefined(initialSessionState?.expiryTimeout)
+      ? { expiryTimeout: initialSessionState.expiryTimeout }
+      : {}),
     setVariableIdsForHistory: extractVariableIdsUsedForTranscript(
       typebotInSession,
       { sessionStore },
     ),
-    ...initialSessionState,
   };
 
   const setVariableHistory: SetVariableHistoryItem[] = [];
@@ -323,22 +354,45 @@ export const startSession = async ({
 };
 
 const getTypebot = async (startParams: StartParams) => {
-  if (startParams.type === "preview" && startParams.typebot)
-    return startParams.typebot;
+  let typebotQuery:
+    | Awaited<ReturnType<typeof findTypebot>>
+    | Awaited<ReturnType<typeof findPublicTypebot>>;
 
-  if (startParams.type === "preview" && !startParams.userId)
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "You need to be authenticated to perform this action",
+  if (startParams.type === "preview") {
+    if (!startParams.userId)
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "You need to be authenticated to perform this action",
+      });
+
+    typebotQuery = await findTypebot({
+      id: startParams.typebotId,
+      userId: startParams.userId,
     });
+  } else if (startParams.type === "template") {
+    const template = getTemplateWithTypebotBySlug(startParams.templateSlug);
+    if (!template)
+      throw new ORPCError("NOT_FOUND", {
+        message: "Template not found",
+      });
 
-  const typebotQuery =
-    startParams.type === "preview"
-      ? await findTypebot({
-          id: startParams.typebotId,
-          userId: startParams.userId,
-        })
-      : await findPublicTypebot({ publicId: startParams.publicId });
+    return startTypebotSchema.parse(template.typebot);
+  } else {
+    typebotQuery = await findPublicTypebot({ publicId: startParams.publicId });
+  }
+
+  if (
+    typebotQuery &&
+    "typebot" in typebotQuery &&
+    (isNotDefined(typebotQuery.lastActivityAt) ||
+      !datesAreOnSameDay(typebotQuery.lastActivityAt, new Date()))
+  ) {
+    after(async () => {
+      await prisma.publicTypebot.update({
+        where: { id: typebotQuery.id },
+        data: { lastActivityAt: new Date() },
+      });
+    });
+  }
 
   const parsedTypebot =
     typebotQuery && "typebot" in typebotQuery
@@ -351,8 +405,7 @@ const getTypebot = async (startParams: StartParams) => {
       : typebotQuery;
 
   if (!parsedTypebot || parsedTypebot.isArchived)
-    throw new TRPCError({
-      code: "NOT_FOUND",
+    throw new ORPCError("NOT_FOUND", {
       message: "Typebot not found",
     });
 
@@ -363,14 +416,12 @@ const getTypebot = async (startParams: StartParams) => {
       typebotQuery.typebot.workspace.isSuspended);
 
   if (isQuarantinedOrSuspended)
-    throw new TRPCError({
-      code: "FORBIDDEN",
+    throw new ORPCError("FORBIDDEN", {
       message: defaultSystemMessages.botClosed,
     });
 
   if ("isClosed" in parsedTypebot && parsedTypebot.isClosed)
-    throw new TRPCError({
-      code: "BAD_REQUEST",
+    throw new ORPCError("BAD_REQUEST", {
       message:
         settingsSchema.parse(parsedTypebot.settings).general?.systemMessages
           ?.botClosed ?? defaultSystemMessages.botClosed,
@@ -382,16 +433,18 @@ const getTypebot = async (startParams: StartParams) => {
 const getOrInitResult = async ({
   isPreview,
   resultId,
+  typebotId,
   isRememberUserEnabled,
 }: {
   resultId: string | undefined;
+  typebotId: string;
   isPreview: boolean;
   isRememberUserEnabled: boolean;
 }) => {
   if (isPreview) return;
   const existingResult =
     resultId && isRememberUserEnabled
-      ? await findResult({ id: resultId })
+      ? await findResult({ id: resultId, typebotId })
       : undefined;
 
   return {
@@ -501,7 +554,7 @@ const removeLiteBadgeCss = (code: string) => {
   code = code.replace(/\/\*[\s\S]*?\*\//gm, "");
 
   // Match any rule containing lite-badge, handling nested blocks
-  let prevCode;
+  let prevCode: string;
   do {
     prevCode = code;
     code = code.replace(
@@ -511,7 +564,7 @@ const removeLiteBadgeCss = (code: string) => {
   } while (code !== prevCode);
 
   // Clean up any empty media queries or other nested rules
-  return code.replace(/@[^{]+{[\s]*}/gm, "");
+  return code.replace(/@[^{]+{\s*}/gm, "");
 };
 
 const convertStartTypebotToTypebotInSession = (
@@ -539,7 +592,7 @@ const convertStartTypebotToTypebotInSession = (
     variables: startVariables,
     events: typebot.events,
     systemMessages: typebot.settings.general?.systemMessages,
-  } as TypebotInSessionV5; // I am not sure why, this needs to be casted, the discrimination does not work here
+  } as TypebotInSessionV5; // I am not sure why. This needs to be cast. The discrimination does not work here
 };
 
 const extractVariableIdsUsedForTranscript = (

@@ -1,7 +1,7 @@
 import {
+  type AnyConfiguration,
   defineCollection,
   defineConfig,
-  suppressDeprecatedWarnings,
 } from "@content-collections/core";
 import { compileMDX } from "@content-collections/mdx";
 import {
@@ -15,20 +15,21 @@ import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import type { Pluggable } from "unified";
 import { visit } from "unist-util-visit";
-
-suppressDeprecatedWarnings("legacySchema");
+import { z } from "zod";
 
 const posts = defineCollection({
   name: "posts",
   directory: "content",
   include: "**/*.mdx",
-  schema: (z) => ({
+  exclude: "faq/**",
+  schema: z.object({
     title: z.string(),
     description: z.string().optional(),
     postedAt: z.string().date().optional(),
     updatedAt: z.string().date().optional(),
     author: z.string(),
     cover: z.string().optional(),
+    content: z.string(),
   }),
   transform: async (document, context) => {
     const mdx = await compileMDX(context, document, {
@@ -45,9 +46,38 @@ const posts = defineCollection({
     };
   },
 });
-export default defineConfig({
-  collections: [posts],
+
+const faqs = defineCollection({
+  name: "faqs",
+  directory: "content/faq",
+  include: "*.mdx",
+  schema: z.object({
+    question: z.string(),
+    postedAt: z.string().date().optional(),
+    updatedAt: z.string().date().optional(),
+    content: z.string(),
+  }),
+  transform: async (document, context) => {
+    const mdx = await compileMDX(context, document, {
+      remarkPlugins: [remarkGfm, remarkRemoveMdxExtension],
+      rehypePlugins: [
+        rehypeSlug,
+        [rehypePrettyCode, rehypePrettyCodeSettings],
+        [rehypeAutolinkHeadings, rehypeAutolinkHeadingsSettings],
+      ],
+    });
+    return {
+      ...document,
+      mdx,
+    };
+  },
 });
+
+const contentCollectionsConfig: AnyConfiguration = defineConfig({
+  content: [posts, faqs],
+});
+
+export default contentCollectionsConfig;
 
 const rehypePrettyCodeSettings = {
   theme: "material-theme-palenight",

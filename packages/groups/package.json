@@ -4,14 +4,16 @@
   "type": "module",
   "private": true,
   "exports": {
-    "./*": "./src/*.ts"
+    "./*": {
+      "types": "./src/*.ts",
+      "import": "./src/*.ts",
+      "default": "./src/*.ts"
+    },
+    "./package.json": "./package.json"
   },
   "dependencies": {
     "@typebot.io/blocks-core": "workspace:*",
-    "@typebot.io/zod": "workspace:*",
-    "@typebot.io/schemas": "workspace:*"
-  },
-  "devDependencies": {
-    "@typebot.io/tsconfig": "workspace:*"
+    "@typebot.io/schemas": "workspace:*",
+    "zod": "^4.3.5"
   }
 }

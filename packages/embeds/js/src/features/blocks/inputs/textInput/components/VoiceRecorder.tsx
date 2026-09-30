@@ -4,8 +4,8 @@ import { defaultButtonsBackgroundColor } from "@typebot.io/theme/constants";
 import type { Theme } from "@typebot.io/theme/schemas";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { createEffect, createSignal, onCleanup } from "solid-js";
-import { CloseIcon } from "@/components/icons/CloseIcon";
-import type { BotContext } from "@/types";
+import { CloseIcon } from "../../../../../components/icons/CloseIcon";
+import type { BotContext } from "../../../../../types";
 import { volumeProcessorCode } from "./VolumeProcessor";
 
 const barWidth = 3;
@@ -19,6 +19,7 @@ type Props = {
   recordingStatus: "asking" | "started" | "stopped";
   buttonsTheme: NonNullable<Theme["chat"]>["buttons"];
   context: BotContext;
+  isAbortDisabled?: boolean;
   onAbortRecording: () => void;
   onRecordingConfirmed: (stream: MediaStream) => void;
 };
@@ -95,7 +96,7 @@ export const VoiceRecorder = (props: Props) => {
     if (!ctx) ctx = canvasElement.getContext("2d") ?? undefined;
 
     recordTimeInterval = setInterval(() => {
-      setRecordingTime((prev) => (prev += 1));
+      setRecordingTime((prev) => prev + 1);
     }, 1000);
 
     audioContext = new AudioContext();
@@ -167,7 +168,9 @@ export const VoiceRecorder = (props: Props) => {
       )}
     >
       <button
-        class="p-0.5 rounded-full"
+        type="button"
+        class="p-0.5 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={props.isAbortDisabled}
         on:click={stopRecording}
         aria-label="Stop recording"
       >

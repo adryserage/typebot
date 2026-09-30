@@ -1,5 +1,6 @@
 import { createBlock } from "@typebot.io/forge";
 import { askAssistant } from "./actions/askAssistant";
+import { askModel } from "./actions/askModel";
 import { createChatCompletion } from "./actions/createChatCompletion";
 import { createSpeech } from "./actions/createSpeech";
 import { createTranscription } from "./actions/createTranscription";
@@ -19,9 +20,10 @@ export const openAIBlock = createBlock({
   actions: [
     createChatCompletion,
     askAssistant,
+    askModel,
     generateVariables,
     createSpeech,
     createTranscription,
   ],
-  docsUrl: "https://docs.typebot.io/editor/blocks/integrations/openai",
+  docsUrl: "https://docs.typebot.com/editor/blocks/integrations/openai",
 });

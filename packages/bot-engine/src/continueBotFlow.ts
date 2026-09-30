@@ -1,4 +1,4 @@
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 import { BubbleBlockType } from "@typebot.io/blocks-bubbles/constants";
 import {
   isForgedBlockType,
@@ -38,6 +38,7 @@ import type {
 } from "@typebot.io/variables/schemas";
 import { saveDataInResponseVariableMapping } from "./blocks/integrations/httpRequest/saveDataInResponseVariableMapping";
 import { resumeChatCompletion } from "./blocks/integrations/legacy/openai/resumeChatCompletion";
+import { consumeWebhookResponse } from "./blocks/logic/webhook/consumeWebhookResponse";
 import { executeCommandEvent } from "./events/executeCommandEvent";
 import { executeInvalidReplyEvent } from "./events/executeInvalidReplyEvent";
 import { executeReplyEvent } from "./events/executeReplyEvent";
@@ -52,6 +53,7 @@ import { validateAndParseInputMessage } from "./validateAndParseInputMessage";
 import { walkFlowForward } from "./walkFlowForward";
 
 type Params = {
+  sessionId?: string;
   version: 1 | 2;
   state: SessionState;
   textBubbleContentFormat: "richText" | "markdown";
@@ -62,6 +64,7 @@ type Params = {
 export const continueBotFlow = async (
   reply: Message | undefined,
   {
+    sessionId,
     state,
     version,
     textBubbleContentFormat,
@@ -79,7 +82,22 @@ export const continueBotFlow = async (
     });
 
   let newSessionState = state;
+  let webhookResponseIsVerified = false;
   const setVariableHistory: SetVariableHistoryItem[] = [];
+
+  if (
+    getBlockById(state.currentBlockId, state.typebotsQueue[0].typebot.groups)
+      .block?.type === LogicBlockType.WEBHOOK
+  ) {
+    const payload = await consumeWebhookResponse(
+      reply?.type === "text" ? reply.text : undefined,
+      state,
+      sessionId,
+    );
+    reply = { type: "text", text: payload };
+    webhookResponseIsVerified = true;
+    newSessionState = { ...state, pendingWebhook: undefined };
+  }
 
   if (reply?.type === "command") {
     newSessionState = executeCommandEvent({
@@ -89,8 +107,7 @@ export const continueBotFlow = async (
   }
 
   if (!newSessionState.currentBlockId)
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
+    throw new ORPCError("INTERNAL_SERVER_ERROR", {
       message: "Current block id is not set",
     });
 
@@ -100,10 +117,12 @@ export const continueBotFlow = async (
   );
 
   if (!block)
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
+    throw new ORPCError("INTERNAL_SERVER_ERROR", {
       message: "Group / block not found",
     });
+
+  if (block.type === LogicBlockType.WEBHOOK && !webhookResponseIsVerified)
+    throw new ORPCError("BAD_REQUEST", { message: "Invalid webhook response" });
 
   const nonInputProcessResult = await processNonInputBlock({
     block,
@@ -155,12 +174,15 @@ export const continueBotFlow = async (
         );
         newSessionState = updatedState;
         setVariableHistory.push(...newSetVariableHistory);
-        return continueBotFlow(undefined, {
-          state: newSessionState,
-          version,
-          textBubbleContentFormat,
-          sessionStore,
-        });
+        return {
+          ...(await continueBotFlow(undefined, {
+            state: newSessionState,
+            version,
+            textBubbleContentFormat,
+            sessionStore,
+          })),
+          setVariableHistory,
+        };
       }
     }
 
@@ -173,12 +195,15 @@ export const continueBotFlow = async (
           });
         newSessionState = updatedState;
         setVariableHistory.push(...newSetVariableHistory);
-        return continueBotFlow(undefined, {
-          state: newSessionState,
-          version,
-          textBubbleContentFormat,
-          sessionStore,
-        });
+        return {
+          ...(await continueBotFlow(undefined, {
+            state: newSessionState,
+            version,
+            textBubbleContentFormat,
+            sessionStore,
+          })),
+          setVariableHistory,
+        };
       }
       return {
         ...(await parseRetryMessage(block, {
@@ -372,10 +397,10 @@ const processNonInputBlock = async ({
       response = JSON.parse(reply.text);
     } catch (err) {
       if (block.type === IntegrationBlockType.HTTP_REQUEST)
-        throw new TRPCError({
-          code: "BAD_REQUEST",
+        throw new ORPCError("BAD_REQUEST", {
           message: "Provided response is not valid JSON",
-          cause: (await parseUnknownError({ err })).description,
+          data: await parseUnknownError({ err }),
+          cause: err,
         });
       response = {
         statusCode: 200,
@@ -392,6 +417,8 @@ const processNonInputBlock = async ({
       sessionStore,
     });
     if (result.newSessionState) newSessionState = result.newSessionState;
+    if (block.type === LogicBlockType.WEBHOOK)
+      setVariableHistory.push(...(result.newSetVariableHistory ?? []));
   } else if (isForgedBlockType(block.type)) {
     if (reply) {
       const options = (block as ForgedBlock).options;

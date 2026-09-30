@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/nextjs";
 import type { ResponseVariableMapping } from "@typebot.io/blocks-integrations/httpRequest/schema";
 import type { WebhookBlock } from "@typebot.io/blocks-logic/webhook/schema";
 import { env } from "@typebot.io/env";
@@ -18,6 +17,7 @@ import { DataVariableInputs } from "@/features/blocks/integrations/httpRequest/c
 import { computeDeepKeysMappingSuggestionList } from "@/features/blocks/integrations/httpRequest/helpers/computeDeepKeysMappingSuggestionList";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
 import { useUser } from "@/features/user/hooks/useUser";
+import { orpcClient } from "@/lib/queryClient";
 import { toast } from "@/lib/toast";
 
 type Props = {
@@ -45,11 +45,28 @@ export const WebhookSettings = ({
 
   const ws = usePartySocket({
     host: env.NEXT_PUBLIC_PARTYKIT_HOST,
-    room: `${user?.id}/${typebot?.id}/webhooks`,
+    room: encodeURIComponent(`${user?.id}/${typebot?.id}/webhooks`),
+    query: async () => {
+      if (!typebot) throw new Error("Typebot not loaded");
+      return orpcClient.getWebhookSubscription({
+        typebotId: typebot.id,
+        blockId,
+      });
+    },
 
     async onMessage(e) {
       try {
-        const parsedData = JSON.parse(e.data);
+        // Presentation only. The engine independently verifies the signature.
+        const encodedClaims = e.data
+          .split(".")[0]
+          .replaceAll("-", "+")
+          .replaceAll("_", "/");
+        const claims = JSON.parse(
+          new TextDecoder().decode(
+            Uint8Array.from(atob(encodedClaims), (char) => char.charCodeAt(0)),
+          ),
+        );
+        const parsedData = JSON.parse(claims.payload);
         if (Object.keys(parsedData).length > 0) {
           setReceivedData(JSON.stringify(parsedData, null, 2));
           setResponseKeys(computeDeepKeysMappingSuggestionList(parsedData));
@@ -60,10 +77,13 @@ export const WebhookSettings = ({
         toast(await parseUnknownError({ err }));
       }
     },
-    async onError(e) {
-      console.error(e);
-      console.log((await parseUnknownError({ err: e })).details);
-      Sentry.captureException(e);
+    onError() {
+      ws.close();
+      setWebsocketStatus("closed");
+      toast({ title: "Could not connect to the webhook relay" });
+    },
+    onClose() {
+      setWebsocketStatus("closed");
     },
     startClosed: true,
   });
@@ -108,7 +128,7 @@ export const WebhookSettings = ({
               <p className="text-sm">
                 Waiting for an{" "}
                 <TextLink
-                  href={"https://docs.typebot.io/api-reference/authentication"}
+                  href={"https://docs.typebot.com/api-reference/authentication"}
                   isExternal
                 >
                   authenticated
@@ -148,7 +168,7 @@ export const WebhookSettings = ({
               You can easily get the Result ID{" "}
               <TextLink
                 isExternal
-                href="https://docs.typebot.io/editor/blocks/logic/set-variable#result-id"
+                href="https://docs.typebot.com/editor/blocks/logic/set-variable#result-id"
               >
                 with a Set variable block
               </TextLink>

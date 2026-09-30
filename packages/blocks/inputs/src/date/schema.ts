@@ -2,7 +2,7 @@ import {
   blockBaseSchema,
   optionBaseSchema,
 } from "@typebot.io/blocks-base/schemas";
-import { z } from "@typebot.io/zod";
+import { z } from "zod";
 import { InputBlockType } from "../constants";
 
 export const dateInputOptionsSchema = optionBaseSchema.merge(
@@ -12,6 +12,12 @@ export const dateInputOptionsSchema = optionBaseSchema.merge(
         button: z.string().optional(),
         from: z.string().optional(),
         to: z.string().optional(),
+        separator: z
+          .string()
+          .optional()
+          .describe(
+            "Word joining the start and end date in the submitted range value, e.g. the 'to' in '01/01/2024 to 05/01/2024'",
+          ),
       })
       .optional(),
     hasTime: z.boolean().optional(),
@@ -27,16 +33,11 @@ export const dateInputOptionsSchema = optionBaseSchema.merge(
   }),
 );
 
-export const dateInputSchema = blockBaseSchema
-  .merge(
-    z.object({
-      type: z.enum([InputBlockType.DATE]),
-      options: dateInputOptionsSchema.optional(),
-    }),
-  )
-  .openapi({
-    title: "Date",
-    ref: "dateInput",
-  });
+export const dateInputSchema = blockBaseSchema.merge(
+  z.object({
+    type: z.enum([InputBlockType.DATE]),
+    options: dateInputOptionsSchema.optional(),
+  }),
+);
 
 export type DateInputBlock = z.infer<typeof dateInputSchema>;

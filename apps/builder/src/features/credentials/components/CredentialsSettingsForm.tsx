@@ -21,12 +21,13 @@ import { WhatsAppLogo } from "@/components/logos/WhatsAppLogo";
 import { BlockIcon } from "@/features/editor/components/BlockIcon";
 import { BlockLabel } from "@/features/editor/components/BlockLabel";
 import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
-import { trpc } from "@/lib/queryClient";
+import { orpc } from "@/lib/queryClient";
 import { CredentialsCreateDialog } from "./CredentialsCreateDialog";
 import { CredentialsUpdateDialog } from "./CredentialsUpdateDialog";
 
-const hiddenTypes = ["http proxy"] as const;
-const nonEditableTypes = ["whatsApp", "google sheets"] as const;
+const isHiddenType = (type: Credentials["type"]) => type === "http proxy";
+const isNonEditableType = (type: Credentials["type"]) =>
+  type === "google sheets";
 
 type CredentialsInfo = Pick<Credentials, "id" | "type" | "name">;
 
@@ -45,23 +46,22 @@ export const CredentialsSettingsForm = () => {
   const [deletingCredentialsId, setDeletingCredentialsId] = useState<string>();
   const { workspace } = useWorkspace();
   const { data, isLoading, refetch } = useQuery(
-    trpc.credentials.listCredentials.queryOptions(
-      selectedScope === "workspace"
-        ? {
-            scope: "workspace",
-            workspaceId: workspace!.id,
-          }
-        : {
-            scope: "user",
-          },
-      {
-        enabled: selectedScope === "user" || !!workspace?.id,
-      },
-    ),
+    orpc.credentials.listCredentials.queryOptions({
+      input:
+        selectedScope === "workspace"
+          ? {
+              scope: "workspace",
+              workspaceId: workspace?.id ?? "",
+            }
+          : {
+              scope: "user",
+            },
+      enabled: selectedScope === "user" || !!workspace?.id,
+    }),
   );
 
   const { mutate: deleteCredentials } = useMutation(
-    trpc.credentials.deleteCredentials.mutationOptions({
+    orpc.credentials.deleteCredentials.mutationOptions({
       onMutate: ({ credentialsId }) =>
         setDeletingCredentialsId(credentialsId as string),
       onSettled: () => {
@@ -85,7 +85,6 @@ export const CredentialsSettingsForm = () => {
         <div className="flex items-center gap-2">
           <h2>{t("credentials")}</h2>
           <BasicSelect
-            size="sm"
             items={[
               { label: "User", value: "user" },
               { label: "Workspace", value: "workspace" },
@@ -103,10 +102,7 @@ export const CredentialsSettingsForm = () => {
           </Menu.TriggerButton>
           <Menu.Popup>
             {credentialsTypes
-              .filter(
-                (type) =>
-                  !hiddenTypes.includes(type as (typeof hiddenTypes)[number]),
-              )
+              .filter((type) => !isHiddenType(type))
               .map((type) => (
                 <Menu.Item
                   key={type}
@@ -141,12 +137,7 @@ export const CredentialsSettingsForm = () => {
                     name={cred.name}
                     isDeleting={deletingCredentialsId === cred.id}
                     onEditClick={
-                      nonEditableTypes.includes(
-                        cred.type as (typeof nonEditableTypes)[number],
-                      ) ||
-                      hiddenTypes.includes(
-                        cred.type as (typeof hiddenTypes)[number],
-                      )
+                      isNonEditableType(cred.type) || isHiddenType(cred.type)
                         ? undefined
                         : () => {
                             setEditingCredentials({
@@ -161,7 +152,7 @@ export const CredentialsSettingsForm = () => {
                         selectedScope === "workspace"
                           ? {
                               scope: "workspace",
-                              workspaceId: workspace!.id,
+                              workspaceId: workspace?.id ?? "",
                               credentialsId: cred.id,
                             }
                           : { scope: "user", credentialsId: cred.id },

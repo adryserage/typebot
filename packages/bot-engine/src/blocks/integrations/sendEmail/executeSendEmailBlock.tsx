@@ -1,4 +1,4 @@
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 import type { SendEmailBlock } from "@typebot.io/blocks-integrations/sendEmail/schema";
 import type {
   SessionState,
@@ -10,7 +10,6 @@ import type { SmtpCredentials } from "@typebot.io/credentials/schemas";
 import { renderDefaultBotNotificationEmail } from "@typebot.io/emails/transactional/DefaultBotNotificationEmail";
 import { env } from "@typebot.io/env";
 import { parseUnknownError } from "@typebot.io/lib/parseUnknownError";
-import { getFileTempUrl } from "@typebot.io/lib/s3/getFileTempUrl";
 import {
   byId,
   isDefined,
@@ -27,9 +26,9 @@ import { parseVariables } from "@typebot.io/variables/parseVariables";
 import type { Variable } from "@typebot.io/variables/schemas";
 import { createTransport } from "nodemailer";
 import type Mail from "nodemailer/lib/mailer/index";
-import { getTypebotWorkspaceId } from "../../../queries/getTypebotWorkspaceId";
 import type { ExecuteIntegrationResponse } from "../../../types";
 import { defaultFrom, defaultTransportOptions } from "./constants";
+import { parseEmailAttachments } from "./parseEmailAttachments";
 
 export const sendEmailSuccessDescription = "Email successfully sent";
 export const sendEmailErrorDescription = "Email not sent";
@@ -89,8 +88,7 @@ export const executeSendEmailBlock = async ({
   }
 
   if (sessionStore.getEmailSendingCount() >= maxEmailSending)
-    throw new TRPCError({
-      code: "FORBIDDEN",
+    throw new ORPCError("FORBIDDEN", {
       message: "Attempt to send more than 5 emails",
     });
   try {
@@ -122,6 +120,7 @@ export const executeSendEmailBlock = async ({
       isCustomBody: options.isCustomBody,
       isBodyCode: options.isBodyCode,
       workspaceId: state.workspaceId,
+      resultId,
       sessionStore,
     });
     if (sendEmailLogs) logs.push(...sendEmailLogs);
@@ -148,6 +147,7 @@ const sendEmail = async ({
   isCustomBody,
   fileUrls,
   workspaceId,
+  resultId,
   sessionStore,
 }: {
   credentialsId: string;
@@ -163,6 +163,7 @@ const sendEmail = async ({
   answers: AnswerInSessionState[];
   fileUrls?: string | string[];
   workspaceId: string;
+  resultId: string;
   sessionStore: SessionStore;
 }): Promise<LogInSession[] | undefined> => {
   const logs: LogInSession[] = [];
@@ -215,14 +216,18 @@ const sendEmail = async ({
     to: recipients,
     replyTo,
     subject,
-    attachments: await parseAttachments(fileUrls, typebot.id),
+    attachments: await parseEmailAttachments({
+      fileUrls,
+      typebotId: typebot.id,
+      resultId,
+    }),
+    disableFileAccess: true,
     ...emailBody,
   };
 
   const hash = JSON.stringify(email);
   if (sessionStore.getPrevHash() && sessionStore.getPrevHash() === hash)
-    throw new TRPCError({
-      code: "FORBIDDEN",
+    throw new ORPCError("FORBIDDEN", {
       message: "Attempt to send the same email twice",
     });
   sessionStore.setPrevHash(hash);
@@ -313,13 +318,19 @@ const parseEmailRecipient = (
   recipient?: string,
 ): { email?: string; name?: string } => {
   if (!recipient) return {};
-  if (recipient.includes("<")) {
-    const [name, email] = recipient.split("<");
+
+  const namedRecipientMatch = recipient.match(
+    /^(?<name>[^<]+)<(?<email>[^>]+)>$/,
+  );
+  const email = namedRecipientMatch?.groups?.email?.trim();
+  const name = namedRecipientMatch?.groups?.name?.trim().replaceAll('"', "");
+
+  if (email)
     return {
-      name: name?.replace(/>/g, "").trim().replace(/"/g, ""),
-      email: email?.replace(">", "").trim(),
+      name,
+      email,
     };
-  }
+
   return {
     email: recipient,
   };
@@ -340,40 +351,4 @@ const stringifyUniqueVariableValueAsHtml = (
   if (!value) return "";
   if (typeof value === "string") return value.replace(/\n/g, "<br />");
   return value.map(stringifyUniqueVariableValueAsHtml).join("<br />");
-};
-
-const parseAttachments = (
-  fileUrls: string | string[] | undefined,
-  typebotId: string,
-): Promise<{ path: string }[]> | undefined => {
-  if (!fileUrls) return undefined;
-  const urls = Array.isArray(fileUrls) ? fileUrls : fileUrls.split(", ");
-  return Promise.all(
-    urls.map(async (url) => {
-      if (!url.startsWith(env.NEXTAUTH_URL)) return { path: url };
-      const {
-        typebotId: urlTypebotId,
-        resultId,
-        fileName,
-      } = extractDataFromPrivateUrl(url);
-      if (typebotId !== urlTypebotId) return { path: url };
-      const workspaceId = await getTypebotWorkspaceId(typebotId);
-      return {
-        path: await getFileTempUrl({
-          key: `private/workspaces/${workspaceId}/typebots/${typebotId}/results/${resultId}/${fileName}`,
-          expires: 600,
-        }),
-      };
-    }),
-  );
-};
-
-const extractDataFromPrivateUrl = (url: string) => {
-  const pathSegments = url.split("/").filter((segment) => segment !== "");
-
-  const typebotId = pathSegments[4];
-  const resultId = pathSegments[6];
-  const fileName = pathSegments[7];
-
-  return { typebotId, resultId, fileName };
 };

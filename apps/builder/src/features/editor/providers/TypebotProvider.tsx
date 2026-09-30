@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { isDefined, omit } from "@typebot.io/lib/utils";
 import type {
@@ -25,7 +26,7 @@ import { convertPublicTypebotToTypebot } from "@/features/publish/helpers/conver
 import { isPublished as isPublishedHelper } from "@/features/publish/helpers/isPublished";
 import { preventUserFromRefreshing } from "@/helpers/preventUserFromRefreshing";
 import { useAutoSave } from "@/hooks/useAutoSave";
-import { trpc } from "@/lib/queryClient";
+import { orpc } from "@/lib/queryClient";
 import { toast } from "@/lib/toast";
 import { useUndo } from "../hooks/useUndo";
 import { type BlocksActions, blocksAction } from "./typebotActions/blocks";
@@ -69,7 +70,10 @@ const typebotContext = createContext<
     currentUserMode: "guest" | "read" | "write";
     isPublished: boolean;
     isSavingLoading: boolean;
-    save: (updates?: Partial<TypebotV6>, overwrite?: boolean) => Promise<void>;
+    save: (
+      updates?: Partial<TypebotV6>,
+      overwrite?: boolean,
+    ) => Promise<"saved" | "unchanged" | "failed">;
     undo: () => void;
     redo: () => void;
     canRedo: boolean;
@@ -86,7 +90,6 @@ const typebotContext = createContext<
     VariablesActions &
     EdgesActions &
     EventsActions
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   //@ts-expect-error
 >({});
 
@@ -107,32 +110,29 @@ export const TypebotProvider = ({
     refetch: refetchTypebot,
     error: typebotError,
   } = useQuery(
-    trpc.typebot.getTypebot.queryOptions(
-      { typebotId: typebotId as string, migrateToLatestVersion: true },
-      {
-        enabled: isDefined(typebotId),
-        retry: 0,
-      },
-    ),
+    orpc.typebot.getTypebot.queryOptions({
+      input: { typebotId: typebotId as string, migrateToLatestVersion: true },
+      enabled: isDefined(typebotId),
+      retry: 0,
+    }),
   );
 
-  const { data: publishedTypebotData } = useQuery(
-    trpc.typebot.getPublishedTypebot.queryOptions(
-      { typebotId: typebotId as string, migrateToLatestVersion: true },
-      {
+  const { data: publishedTypebotData, refetch: refetchPublishedTypebot } =
+    useQuery(
+      orpc.typebot.getPublishedTypebot.queryOptions({
+        input: { typebotId: typebotId as string, migrateToLatestVersion: true },
         enabled:
           isDefined(typebotId) &&
           (typebotData?.currentUserMode === "read" ||
             typebotData?.currentUserMode === "write"),
-      },
-    ),
-  );
+      }),
+    );
 
   const { mutateAsync: updateTypebot, status: updateTypebotStatus } =
     useMutation(
-      trpc.typebot.updateTypebot.mutationOptions({
+      orpc.typebot.updateTypebot.mutationOptions({
         onError: (error) => {
-          if (error.data?.code === "CONFLICT") {
+          if (error instanceof ORPCError && error.code === "CONFLICT") {
             toast({
               title: "Could not update the typebot",
               description:
@@ -152,9 +152,11 @@ export const TypebotProvider = ({
             description: error.message,
           });
         },
-        onSuccess: () => {
+        onSuccess: (_data, variables) => {
           if (!typebotId) return;
           refetchTypebot();
+          if (variables.typebot.whatsAppCredentialsId === null)
+            refetchPublishedTypebot();
         },
       }),
     );
@@ -222,7 +224,8 @@ export const TypebotProvider = ({
 
   const saveTypebot = useCallback(
     async (updates?: Partial<TypebotV6>, overwrite?: boolean) => {
-      if (!localTypebot || !typebot || isReadOnly) return;
+      if (!localTypebot || !typebot) return "failed";
+      if (isReadOnly) return "unchanged";
       const typebotToSave = {
         ...localTypebot,
         ...updates,
@@ -233,10 +236,10 @@ export const TypebotProvider = ({
           JSON.parse(JSON.stringify(omit(typebotToSave, "updatedAt"))),
         )
       )
-        return;
-      const newParsedTypebot = typebotV6Schema.parse({ ...typebotToSave });
-      setLocalTypebot(newParsedTypebot);
+        return "unchanged";
       try {
+        const newParsedTypebot = typebotV6Schema.parse({ ...typebotToSave });
+        setLocalTypebot(newParsedTypebot);
         const { typebot } = await updateTypebot({
           typebotId: newParsedTypebot.id,
           typebot: newParsedTypebot,
@@ -246,10 +249,12 @@ export const TypebotProvider = ({
         if (overwrite) {
           setLocalTypebot(typebot);
         }
+        return "saved";
       } catch {
         setLocalTypebot({
           ...localTypebot,
         });
+        return "failed";
       }
     },
     [
@@ -324,7 +329,7 @@ export const TypebotProvider = ({
     );
   };
 
-  if (typebotError?.data?.httpStatus === 404)
+  if (typebotError instanceof ORPCError && typebotError.code === "NOT_FOUND")
     return <NotFoundPage resourceName="Typebot" />;
   return (
     <typebotContext.Provider

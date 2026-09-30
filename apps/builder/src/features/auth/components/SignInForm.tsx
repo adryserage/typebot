@@ -1,5 +1,6 @@
-import { sanitizeUrl } from "@braintree/sanitize-url";
 import { useTranslate } from "@tolgee/react";
+import { createEmailMagicLink } from "@typebot.io/auth/helpers/createEmailMagicLink";
+import { sanitizeRedirectPath } from "@typebot.io/auth/helpers/sanitizeRedirectPath";
 import { Alert } from "@typebot.io/ui/components/Alert";
 import { Button } from "@typebot.io/ui/components/Button";
 import { Field } from "@typebot.io/ui/components/Field";
@@ -15,7 +16,6 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { TextLink } from "@/components/TextLink";
 import { toast } from "@/lib/toast";
-import { createEmailMagicLink } from "../helpers/createEmailMagicLink";
 import { DividerWithText } from "./DividerWithText";
 import { SignInError } from "./SignInError";
 import { SocialLoginButtons } from "./SocialLoginButtons";
@@ -45,7 +45,7 @@ export const SignInForm = ({ defaultEmail, className }: Props) => {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace(redirectPath ? sanitizeUrl(redirectPath) : "/typebots");
+      router.replace(sanitizeRedirectPath(redirectPath) ?? "/typebots");
       return;
     }
     (async () => {
@@ -53,7 +53,7 @@ export const SignInForm = ({ defaultEmail, className }: Props) => {
       setProviders(providers ?? undefined);
       setIsLoadingProviders(false);
     })();
-  }, [status, router]);
+  }, [status, router, redirectPath]);
 
   useEffect(() => {
     if (authError === "ip-banned") {
@@ -119,7 +119,7 @@ export const SignInForm = ({ defaultEmail, className }: Props) => {
       <p>
         {t("auth.noProvider.preLink")}{" "}
         <TextLink
-          href="https://docs.typebot.io/self-hosting/configuration"
+          href="https://docs.typebot.com/self-hosting/configuration"
           isExternal
         >
           {t("auth.noProvider.link")}
@@ -138,15 +138,17 @@ export const SignInForm = ({ defaultEmail, className }: Props) => {
                 className="flex items-center gap-2"
                 onSubmit={handleEmailSubmit}
               >
-                <Input
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="email@company.com"
-                  required
-                  value={emailValue}
-                  onValueChange={setEmailValue}
-                />
+                <Field.Root>
+                  <Input
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="email@company.com"
+                    required
+                    value={emailValue}
+                    onValueChange={setEmailValue}
+                  />
+                </Field.Root>
                 <Button
                   type="submit"
                   disabled={

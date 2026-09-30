@@ -1,14 +1,23 @@
 import { defaultFileInputOptions } from "@typebot.io/blocks-inputs/file/constants";
 import type { FileInputBlock } from "@typebot.io/blocks-inputs/file/schema";
+import { isImageFileInput } from "@typebot.io/lib/isImageFileInput";
 import { isDefined } from "@typebot.io/lib/utils";
 import { defaultSystemMessages } from "@typebot.io/settings/constants";
-import { createSignal, For, Match, Show, Switch } from "solid-js";
-import { Button } from "@/components/Button";
-import { SendButton } from "@/components/SendButton";
-import { Spinner } from "@/components/Spinner";
-import type { BotContext, InputSubmitContent } from "@/types";
-import { guessApiHost } from "@/utils/guessApiHost";
-import { toaster } from "@/utils/toaster";
+import {
+  createSignal,
+  createUniqueId,
+  For,
+  Match,
+  Show,
+  Switch,
+} from "solid-js";
+import { Button } from "../../../../../components/Button";
+import { SendButton } from "../../../../../components/SendButton";
+import { Spinner } from "../../../../../components/Spinner";
+import type { BotContext, InputSubmitContent } from "../../../../../types";
+import { guessApiHost } from "../../../../../utils/guessApiHost";
+import { sanitizeHtmlFragment } from "../../../../../utils/sanitizeHtml";
+import { toaster } from "../../../../../utils/toaster";
 import { injectAndroidCameraCaptureToMimeTypes } from "../helpers/injectAndroidCameraCaptureToMimeTypes";
 import { sanitizeNewFile } from "../helpers/sanitizeSelectedFiles";
 import { uploadFiles } from "../helpers/uploadFiles";
@@ -22,6 +31,7 @@ type Props = {
 };
 
 export const FileUploadForm = (props: Props) => {
+  const fileInputId = createUniqueId();
   const [selectedFiles, setSelectedFiles] = createSignal<File[]>([]);
   const [isUploading, setIsUploading] = createSignal(false);
   const [uploadProgressPercent, setUploadProgressPercent] = createSignal(0);
@@ -181,10 +191,19 @@ export const FileUploadForm = (props: Props) => {
     );
   };
 
+  const capture = () =>
+    isImageFileInput(props.block.options?.allowedFileTypes)
+      ? props.block.options?.capture
+      : undefined;
+
+  const placeholderMarkup = () =>
+    sanitizeHtmlFragment(props.block.options?.labels?.placeholder) ??
+    defaultFileInputOptions.labels.placeholder;
+
   return (
     <form class="flex flex-col w-full gap-2" onSubmit={handleSubmit}>
       <label
-        for="dropzone-file"
+        for={fileInputId}
         class={
           "typebot-upload-input py-6 flex flex-col justify-center items-center w-full bg-gray-50 border-2 border-gray-300 border-dashed cursor-pointer hover:bg-gray-100 px-8 " +
           (isDraggingOver() ? "dragging-over" : "")
@@ -231,23 +250,22 @@ export const FileUploadForm = (props: Props) => {
               </Show>
               <p
                 class="text-sm text-gray-500 text-center"
-                innerHTML={
-                  props.block.options?.labels?.placeholder ??
-                  defaultFileInputOptions.labels.placeholder
-                }
+                innerHTML={placeholderMarkup()}
               />
             </div>
             <input
-              id="dropzone-file"
+              id={fileInputId}
               type="file"
               class="hidden"
               accept={
                 props.block.options?.allowedFileTypes?.isEnabled
                   ? injectAndroidCameraCaptureToMimeTypes(
                       props.block.options.allowedFileTypes.types,
+                      capture(),
                     )
                   : undefined
               }
+              capture={capture()}
               multiple={
                 props.block.options?.isMultipleAllowed ??
                 defaultFileInputOptions.isMultipleAllowed
@@ -318,6 +336,7 @@ const UploadIcon = () => (
     stroke-linejoin="round"
     class="text-gray-500"
   >
+    <title>File Upload Form</title>
     <polyline points="16 16 12 12 8 16" />
     <line x1="12" y1="12" x2="12" y2="21" />
     <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />

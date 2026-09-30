@@ -9,6 +9,7 @@ import {
 import { byId, isNotDefined } from "@typebot.io/lib/utils";
 import type { LogInSession } from "@typebot.io/logs/schemas";
 import prisma from "@typebot.io/prisma";
+import { WorkspaceRole } from "@typebot.io/prisma/enum";
 import type { SessionStore } from "@typebot.io/runtime-session-store";
 import { isTypebotVersionAtLeastV6 } from "@typebot.io/schemas/helpers/isTypebotVersionAtLeastV6";
 import { settingsSchema } from "@typebot.io/settings/schemas";
@@ -30,8 +31,8 @@ export const executeTypebotLink = async (
   if (!typebotId) {
     logs.push({
       status: "error",
-      description: `Failed to link typebot`,
-      details: `Typebot ID is not specified`,
+      description: "Failed to link typebot",
+      details: "Typebot ID is not specified",
     });
     return { outgoingEdgeId: block.outgoingEdgeId, logs };
   }
@@ -51,7 +52,7 @@ export const executeTypebotLink = async (
     if (!linkedTypebot) {
       logs.push({
         status: "error",
-        description: `Failed to link typebot`,
+        description: "Failed to link typebot",
         details: `Typebot with ID ${block.options?.typebotId} not found`,
       });
       return { outgoingEdgeId: block.outgoingEdgeId, logs };
@@ -71,7 +72,7 @@ export const executeTypebotLink = async (
   if (!nextGroupId) {
     logs.push({
       status: "error",
-      description: `Failed to link typebot`,
+      description: "Failed to link typebot",
       details: `Group with ID "${block.options?.groupId}" not found`,
     });
     return { outgoingEdgeId: block.outgoingEdgeId, logs };
@@ -220,7 +221,7 @@ const fillVariablesWithExistingValues = (
   typebotsQueue: SessionState["typebotsQueue"],
 ): Variable[] =>
   emptyVariables.map((emptyVariable) => {
-    let matchedVariable;
+    let matchedVariable: Variable | undefined;
     for (const typebotInQueue of typebotsQueue) {
       matchedVariable = typebotInQueue.typebot.variables.find(
         (v) => v.name === emptyVariable.name,
@@ -237,8 +238,23 @@ const fetchTypebot = async (state: SessionState, typebotId: string) => {
   const { resultId } = state.typebotsQueue[0];
   const isPreview = !resultId;
   if (isPreview) {
+    const userId = state.previewUserId;
+    if (!userId) return null;
     const typebot = await prisma.typebot.findUnique({
-      where: { id: typebotId, workspaceId: state.workspaceId },
+      where: {
+        id: typebotId,
+        workspaceId: state.workspaceId,
+        OR: [
+          {
+            workspace: {
+              members: {
+                some: { userId, role: { not: WorkspaceRole.GUEST } },
+              },
+            },
+          },
+          { collaborators: { some: { userId } } },
+        ],
+      },
       select: {
         version: true,
         id: true,

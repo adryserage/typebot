@@ -6,6 +6,7 @@ import { sessionOnlySetVariableOptions } from "@typebot.io/blocks-logic/setVaria
 import type { SetVariableBlock } from "@typebot.io/blocks-logic/setVariable/schema";
 import { isNotEmpty } from "@typebot.io/lib/utils";
 import { Button } from "@typebot.io/ui/components/Button";
+import { Editable } from "@typebot.io/ui/components/Editable";
 import { Field } from "@typebot.io/ui/components/Field";
 import { Input } from "@typebot.io/ui/components/Input";
 import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
@@ -19,7 +20,6 @@ import { TrashIcon } from "@typebot.io/ui/icons/TrashIcon";
 import type { Variable } from "@typebot.io/variables/schemas";
 import { useDrag } from "@use-gesture/react";
 import { type FormEvent, useState } from "react";
-import { SingleLineEditable } from "@/components/SingleLineEditable";
 import { toast } from "@/lib/toast";
 import { headerHeight } from "../../editor/constants";
 import { useTypebot } from "../../editor/providers/TypebotProvider";
@@ -33,7 +33,6 @@ export const VariablesDrawer = ({ onClose }: Props) => {
   const { typebot, createVariable, updateVariable, deleteVariable } =
     useTypebot();
   const [width, setWidth] = useState(500);
-  const [isResizeHandleVisible, setIsResizeHandleVisible] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const filteredVariables = typebot?.variables.filter((v) =>
     isNotEmpty(searchValue)
@@ -71,20 +70,14 @@ export const VariablesDrawer = ({ onClose }: Props) => {
 
   return (
     <div
-      className="flex absolute border-l shadow-md p-6 right-0 top-0 h-full bg-gray-1 rounded-l-lg"
-      onMouseOver={() => setIsResizeHandleVisible(true)}
-      onFocus={() => setIsResizeHandleVisible(true)}
-      onBlur={() => setIsResizeHandleVisible(false)}
-      onMouseLeave={() => setIsResizeHandleVisible(false)}
+      className="group/drawer flex absolute border-l shadow-md p-6 right-0 top-0 h-full bg-gray-1 rounded-l-lg"
       style={{ width: `${width}px` }}
     >
-      {isResizeHandleVisible && (
-        <ResizeHandle
-          {...useResizeHandleDrag()}
-          className="animate-in fade-in-0 absolute left-[-7.5px]"
-          style={{ top: `calc(50% - ${headerHeight}px)` }}
-        />
-      )}
+      <ResizeHandle
+        {...useResizeHandleDrag()}
+        className="absolute left-[-7.5px] opacity-0 pointer-events-none transition-opacity group-hover/drawer:opacity-100 group-hover/drawer:pointer-events-auto group-focus-within/drawer:opacity-100 group-focus-within/drawer:pointer-events-auto"
+        style={{ top: `calc(50% - ${headerHeight}px)` }}
+      />
       <div className="flex flex-col w-full gap-4">
         <Button
           className="absolute right-2 top-2"
@@ -158,10 +151,13 @@ const VariableItem = ({
 
   return (
     <div className="flex items-center gap-2 justify-between pl-1">
-      <SingleLineEditable
+      <Editable.Root
         defaultValue={variable.name}
         onValueCommit={(name) => onChange({ name })}
-      />
+      >
+        <Editable.Input />
+        <Editable.Preview />
+      </Editable.Root>
       <div className="flex items-center gap-2">
         {!isSessionOnly && !isLinkedToAnswer && (
           <Popover.Root {...settingsPopoverControls}>

@@ -41,7 +41,7 @@ export const ApiDeployDialog = ({
               </p>
               <CodeEditor
                 isReadOnly
-                lang={"shell"}
+                lang="sh"
                 value={`${parseApiHost(
                   typebot?.customDomain,
                 )}/api/v1/typebots/${publicId}/startChat`}
@@ -59,7 +59,7 @@ export const ApiDeployDialog = ({
               </p>
               <CodeEditor
                 isReadOnly
-                lang={"shell"}
+                lang="sh"
                 value={`${parseApiHost(
                   typebot?.customDomain,
                 )}/api/v1/sessions/<ID_FROM_FIRST_RESPONSE>/continueChat`}
@@ -76,7 +76,7 @@ export const ApiDeployDialog = ({
         <p className="text-sm">
           Check out the{" "}
           <TextLink
-            href="https://docs.typebot.io/api-reference/chat/start-chat"
+            href="https://docs.typebot.com/api-reference/chat/start-chat"
             isExternal
           >
             API reference

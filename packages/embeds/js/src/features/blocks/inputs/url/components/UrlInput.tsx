@@ -2,10 +2,10 @@ import { defaultUrlInputOptions } from "@typebot.io/blocks-inputs/url/constants"
 import type { UrlInputBlock } from "@typebot.io/blocks-inputs/url/schema";
 import { guessDeviceIsMobile } from "@typebot.io/lib/guessDeviceIsMobile";
 import { createSignal, onCleanup, onMount } from "solid-js";
-import { ShortTextInput } from "@/components/inputs/ShortTextInput";
-import { SendButton } from "@/components/SendButton";
-import type { CommandData } from "@/features/commands/types";
-import type { InputSubmitContent } from "@/types";
+import { ShortTextInput } from "../../../../../components/inputs/ShortTextInput";
+import { SendButton } from "../../../../../components/SendButton";
+import type { InputSubmitContent } from "../../../../../types";
+import type { CommandData } from "../../../../commands/types";
 
 type Props = {
   block: UrlInputBlock;
@@ -32,8 +32,9 @@ export const UrlInput = (props: Props) => {
     else inputRef?.focus();
   };
 
-  const submitWhenEnter = (e: KeyboardEvent) => {
-    if (e.key === "Enter") submit();
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    submit();
   };
 
   onMount(() => {
@@ -57,9 +58,9 @@ export const UrlInput = (props: Props) => {
   };
 
   return (
-    <div
+    <form
       class="typebot-input-form flex w-full gap-2 items-end max-w-[350px]"
-      onKeyDown={submitWhenEnter}
+      onSubmit={handleSubmit}
     >
       <div class={"flex typebot-input w-full"}>
         <ShortTextInput
@@ -74,9 +75,9 @@ export const UrlInput = (props: Props) => {
           autocomplete="url"
         />
       </div>
-      <SendButton type="button" class="h-[56px]" on:click={submit}>
+      <SendButton type="submit" class="h-14">
         {props.block.options?.labels?.button}
       </SendButton>
-    </div>
+    </form>
   );
 };

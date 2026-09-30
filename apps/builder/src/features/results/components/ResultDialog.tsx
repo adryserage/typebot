@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { byId, isDefined } from "@typebot.io/lib/utils";
 import { parseColumnsOrder } from "@typebot.io/results/parseColumnsOrder";
 import type {
@@ -12,7 +13,7 @@ import { LoaderCircleIcon } from "@typebot.io/ui/icons/LoaderCircleIcon";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { type JSX, useState } from "react";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
-import { useResultTranscriptQuery } from "../hooks/useResultTranscriptQuery";
+import { orpc } from "@/lib/queryClient";
 import { useResults } from "../ResultsProvider";
 import { HeaderIcon } from "./HeaderIcon";
 
@@ -76,11 +77,16 @@ const Transcript = ({
   typebotId: string;
   resultId: string;
 }) => {
-  const { data: transcriptData, isLoading: isTranscriptLoading } =
-    useResultTranscriptQuery({
-      typebotId,
-      resultId,
-    });
+  const {
+    data: transcriptData,
+    isLoading: isTranscriptLoading,
+    isError: isTranscriptError,
+    error: transcriptError,
+  } = useQuery(
+    orpc.results.getResultTranscript.queryOptions({
+      input: { typebotId, resultId },
+    }),
+  );
 
   if (isTranscriptLoading)
     return (
@@ -90,9 +96,19 @@ const Transcript = ({
       </div>
     );
 
+  if (isTranscriptError)
+    return (
+      <div className="border rounded-md p-4 bg-gray-1 text-sm text-gray-11">
+        <p>Could not load transcript.</p>
+        {transcriptError?.message && (
+          <p className="mt-1 text-xs">{transcriptError.message}</p>
+        )}
+      </div>
+    );
+
   return (
     <div className="border rounded-md p-4 bg-gray-1">
-      {transcriptData?.transcript.map((message: any, index: number) => {
+      {transcriptData?.transcript.map((message: any) => {
         const isBot = message.role === "bot";
         const content =
           message.text || message.image || message.video || message.audio || "";
@@ -103,7 +119,7 @@ const Transcript = ({
               "flex items-center gap-2 w-full mb-2",
               isBot ? "justify-start" : "justify-end",
             )}
-            key={index}
+            key={message.id}
           >
             <div
               className={cx(

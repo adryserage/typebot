@@ -3,7 +3,7 @@ import { Alert } from "@typebot.io/ui/components/Alert";
 import { Dialog } from "@typebot.io/ui/components/Dialog";
 import { CancelCircleIcon } from "@typebot.io/ui/icons/CancelCircleIcon";
 import { TriangleAlertIcon } from "@typebot.io/ui/icons/TriangleAlertIcon";
-import { trpc } from "@/lib/queryClient";
+import { orpc } from "@/lib/queryClient";
 
 type Props = {
   workspaceId: string;
@@ -19,9 +19,11 @@ export const CustomDomainConfigDialog = ({
   domain,
 }: Props) => {
   const { data, error } = useQuery(
-    trpc.customDomains.verifyCustomDomain.queryOptions({
-      name: domain,
-      workspaceId,
+    orpc.customDomains.verifyCustomDomain.queryOptions({
+      input: {
+        name: domain,
+        workspaceId,
+      },
     }),
   );
 
@@ -118,7 +120,7 @@ export const CustomDomainConfigDialog = ({
               <div className="flex flex-col gap-2">
                 <p className="font-bold">Value</p>
                 <p className="text-sm font-mono">
-                  {recordType === "A" ? "76.76.21.21" : `cname.vercel-dns.com`}
+                  {recordType === "A" ? "76.76.21.21" : "cname.vercel-dns.com"}
                 </p>
               </div>
               <div className="flex flex-col gap-2">

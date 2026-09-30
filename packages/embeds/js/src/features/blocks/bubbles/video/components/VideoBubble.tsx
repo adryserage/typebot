@@ -11,7 +11,7 @@ import type {
 } from "@typebot.io/blocks-bubbles/video/schema";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { createSignal, Match, onCleanup, onMount, Switch } from "solid-js";
-import { TypingBubble } from "@/components/TypingBubble";
+import { TypingBubble } from "../../../../../components/TypingBubble";
 
 type Props = {
   content: VideoBubbleBlock["content"];
@@ -23,9 +23,7 @@ let typingTimeout: NodeJS.Timeout;
 
 export const VideoBubble = (props: Props) => {
   let ref: HTMLDivElement | undefined;
-  const [isTyping, setIsTyping] = createSignal(
-    props.onTransitionEnd ? true : false,
-  );
+  const [isTyping, setIsTyping] = createSignal(!!props.onTransitionEnd);
 
   onMount(() => {
     const typingDuration =
@@ -76,6 +74,7 @@ export const VideoBubble = (props: Props) => {
                 props.content.type === VideoBubbleContentType.URL
               }
             >
+              {/* biome-ignore lint/a11y/useMediaCaption: Captions are not available for dynamically configured video bubble sources. */}
               <video
                 autoplay={
                   props.onTransitionEnd
@@ -89,7 +88,7 @@ export const VideoBubble = (props: Props) => {
                   defaultVideoBubbleContent.areControlsDisplayed
                 }
                 class={cx(
-                  "p-4 focus:outline-none w-full z-10 text-fade-in rounded-md",
+                  "p-4 focus:outline-none w-full relative z-20 text-fade-in rounded-md",
                   isTyping() ? "opacity-0 h-8 @xs:h-9" : "opacity-100 h-auto",
                 )}
                 style={{
@@ -110,7 +109,7 @@ export const VideoBubble = (props: Props) => {
             >
               <div
                 class={cx(
-                  "p-4 z-10 text-fade-in w-full aspect-(--aspect-ratio)",
+                  "p-4 relative z-20 text-fade-in w-full aspect-(--aspect-ratio)",
                   isTyping() ? "opacity-0 h-8 @xs:h-9" : "opacity-100",
                   !props.content?.aspectRatio && "h-(--height)",
                 )}
@@ -125,6 +124,7 @@ export const VideoBubble = (props: Props) => {
                 }}
               >
                 <iframe
+                  title="Video content"
                   src={`${
                     embedBaseUrls[
                       props.content?.type as EmbeddableVideoBubbleContentType

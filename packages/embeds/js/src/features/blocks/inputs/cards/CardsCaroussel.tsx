@@ -1,13 +1,13 @@
 import type { CardsBlock } from "@typebot.io/blocks-inputs/cards/schema";
 import { cn } from "@typebot.io/ui/lib/cn";
 import { createMemo, For, Index, type JSX, Show } from "solid-js";
-import { Button } from "@/components/Button";
-import { Carousel } from "@/components/carousel";
-import { ArrowLeftIcon } from "@/components/icons/ArrowLeftIcon";
-import { ArrowRightIcon } from "@/components/icons/ArrowRightIcon";
-import type { ChatContainerSize } from "@/constants";
-import { useChatContainerSize } from "@/contexts/ChatContainerSizeContext";
-import type { InputSubmitContent } from "@/types";
+import { Button } from "../../../../components/Button";
+import { Carousel } from "../../../../components/carousel";
+import { ArrowLeftIcon } from "../../../../components/icons/ArrowLeftIcon";
+import { ArrowRightIcon } from "../../../../components/icons/ArrowRightIcon";
+import type { ChatContainerSize } from "../../../../constants";
+import { useChatContainerSize } from "../../../../contexts/ChatContainerSizeContext";
+import type { InputSubmitContent } from "../../../../types";
 
 type Props = {
   block: CardsBlock;
@@ -62,14 +62,14 @@ export const CardsCaroussel = (props: Props) => {
                 <ArrowLeftIcon class="w-4 h-4" />
               </Button>
             )}
-          ></Carousel.PrevTrigger>
+          />
           <Carousel.NextTrigger
             asChild={(props) => (
               <Button variant="secondary" {...props}>
                 <ArrowRightIcon class="w-4 h-4" />
               </Button>
             )}
-          ></Carousel.NextTrigger>
+          />
         </Carousel.Control>
       </div>
       <Carousel.ItemGroup class="rounded-l-host-bubble @xs:pr-5 pr-4">
@@ -87,7 +87,7 @@ export const CardsCaroussel = (props: Props) => {
                     {(imageUrl) => (
                       <img
                         src={imageUrl()}
-                        alt="Card image"
+                        alt={item().title ?? `Card ${index + 1}`}
                         class="aspect-16/11 object-cover"
                       />
                     )}

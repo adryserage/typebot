@@ -55,8 +55,6 @@ const useCases = [
   },
 ] as const;
 
-let interval: NodeJS.Timer;
-
 export const UseCases = ({ className }: { className?: string }) => {
   const [isAutoProgressEnabled, setIsAutoProgressEnabled] = useState(true);
   const [previousIndex, setPreviousIndex] = useState(0);
@@ -67,33 +65,39 @@ export const UseCases = ({ className }: { className?: string }) => {
     index: 0,
     value: 0,
   });
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(containerRef);
 
   useEffect(() => {
-    if (interval || !isInView) return;
-    interval = setInterval(() => {
-      setPreviousIndex(currentUseCase.index);
+    if (intervalRef.current || !isInView || !isAutoProgressEnabled) return;
+    intervalRef.current = setInterval(() => {
       setCurrentUseCase((prev) => {
+        setPreviousIndex(prev.index);
         if (prev.value < 100) {
           return { ...prev, value: prev.value + 1 };
-        } else {
-          return {
-            index: prev.index === useCases.length - 1 ? 0 : prev.index + 1,
-            value: 0,
-          };
         }
+        return {
+          index: prev.index === useCases.length - 1 ? 0 : prev.index + 1,
+          value: 0,
+        };
       });
     }, 100);
 
-    return () => clearInterval(interval);
-  }, [isInView]);
+    return () => {
+      if (!intervalRef.current) return;
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    };
+  }, [isAutoProgressEnabled, isInView]);
 
   const selectUseCase = (index: number) => {
     setPreviousIndex(currentUseCase.index);
     setCurrentUseCase({ index, value: 0 });
     setIsAutoProgressEnabled(false);
-    clearInterval(interval);
+    if (!intervalRef.current) return;
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
   };
 
   const getProgressValue = (index: number) => {
@@ -188,6 +192,7 @@ const UsecaseTitle = ({
   onClick?: () => void;
 }) => (
   <button
+    type="button"
     className="flex flex-col items-center gap-2 shrink-0 cursor-pointer hover:[&_h3]:opacity-100"
     onClick={onClick}
   >
@@ -228,8 +233,8 @@ export const Cta = () => (
 
 const PreloadUseCaseImages = () => (
   <>
-    {useCases.map((useCase, index) => (
-      <div key={index} className="sr-only" aria-hidden="true">
+    {useCases.map((useCase) => (
+      <div key={useCase.label} className="sr-only" aria-hidden="true">
         <img src={useCase.images.builder.src} alt="" />
         <img src={useCase.images.bot.src} alt="" />
       </div>

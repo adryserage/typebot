@@ -35,7 +35,7 @@ export const ApiPreviewInstructions = ({
       <ol className="flex flex-col gap-6 px-1">
         <li>
           All your requests need to be authenticated with an API token.{" "}
-          <TextLink href="https://docs.typebot.io/api-reference/authentication">
+          <TextLink href="https://docs.typebot.com/api-reference/authentication">
             See instructions
           </TextLink>
           .
@@ -47,7 +47,7 @@ export const ApiPreviewInstructions = ({
             </p>
             <CodeEditor
               isReadOnly
-              lang={"shell"}
+              lang="sh"
               value={`${parseApiHost(typebot?.customDomain)}/api/v1/typebots/${
                 typebot?.id
               }/preview/startChat`}
@@ -71,7 +71,7 @@ export const ApiPreviewInstructions = ({
             </p>
             <CodeEditor
               isReadOnly
-              lang={"shell"}
+              lang="sh"
               value={`${parseApiHost(
                 typebot?.customDomain,
               )}/api/v1/sessions/<ID_FROM_FIRST_RESPONSE>/continueChat`}
@@ -88,7 +88,7 @@ export const ApiPreviewInstructions = ({
       <p className="text-sm pl-1">
         Check out the{" "}
         <TextLink
-          href="https://docs.typebot.io/api-reference/chat/start-preview-chat"
+          href="https://docs.typebot.com/api-reference/chat/start-preview-chat"
           isExternal
         >
           API reference

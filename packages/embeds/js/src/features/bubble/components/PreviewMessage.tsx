@@ -48,9 +48,18 @@ export const PreviewMessage = (props: PreviewMessageProps) => {
   };
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: This container includes a nested close button.
     <div
       part="preview-message"
       onClick={() => props.onClick()}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        props.onClick();
+      }}
       class={cx(
         "absolute bottom-[calc(100%+12px)] w-64 rounded-md duration-200 flex items-center gap-4 shadow-md animate-fade-in cursor-pointer hover:shadow-lg p-4",
         props.placement === "left" ? "left-0" : "right-0",
@@ -95,10 +104,11 @@ const CloseButton = (props: {
   onClick: () => void;
 }) => (
   <button
+    type="button"
     part="preview-message-close-button"
     aria-label="Close"
     class={
-      `absolute -top-2 -right-2 rounded-full w-6 h-6 p-1 hover:brightness-95 active:brightness-90 transition-all border ` +
+      "absolute -top-2 -right-2 rounded-full w-6 h-6 p-1 hover:brightness-95 active:brightness-90 transition-all border " +
       (props.isHovered ? "opacity-100" : "opacity-0")
     }
     onClick={(e) => {
@@ -123,6 +133,7 @@ const CloseButton = (props: {
       stroke-linecap="round"
       stroke-linejoin="round"
     >
+      <title>Preview Message</title>
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>

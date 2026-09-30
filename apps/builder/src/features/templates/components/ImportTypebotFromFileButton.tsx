@@ -5,11 +5,11 @@ import {
   buttonVariants,
 } from "@typebot.io/ui/components/Button";
 import { cn } from "@typebot.io/ui/lib/cn";
-import type { ChangeEvent } from "react";
+import { type ChangeEvent, useId } from "react";
 import { toast } from "@/lib/toast";
 
 type Props = {
-  onNewTypebot: (typebot: Typebot, args: { enableSafetyFlags: true }) => void;
+  onNewTypebot: (typebot: Typebot) => void;
 } & ButtonProps;
 
 export const ImportTypebotFromFileButton = ({
@@ -18,21 +18,20 @@ export const ImportTypebotFromFileButton = ({
   size,
   ...props
 }: Props) => {
+  const fileInputId = useId();
+
   const handleInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target?.files) return;
     const file = e.target.files[0];
     const fileContent = await readFile(file);
     try {
       const typebot = JSON.parse(fileContent);
-      onNewTypebot(
-        {
-          ...typebot,
-          events: typebot.events ?? null,
-          icon: typebot.icon ?? null,
-          name: typebot.name ?? "My typebot",
-        } as Typebot,
-        { enableSafetyFlags: true },
-      );
+      onNewTypebot({
+        ...typebot,
+        events: typebot.events ?? null,
+        icon: typebot.icon ?? null,
+        name: typebot.name ?? "My typebot",
+      } as Typebot);
     } catch (err) {
       console.error(err);
       toast(await parseUnknownClientError({ err }));
@@ -43,13 +42,13 @@ export const ImportTypebotFromFileButton = ({
     <>
       <input
         type="file"
-        id="file-input"
+        id={fileInputId}
         className="hidden"
         onChange={handleInputChange}
         accept=".json"
       />
       <label
-        htmlFor="file-input"
+        htmlFor={fileInputId}
         className={cn(buttonVariants({ variant, size }), props.className)}
       >
         {props.children}

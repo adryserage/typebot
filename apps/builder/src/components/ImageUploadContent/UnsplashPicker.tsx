@@ -1,6 +1,7 @@
 import { env } from "@typebot.io/env";
 import { isDefined } from "@typebot.io/lib/utils";
 import { Alert } from "@typebot.io/ui/components/Alert";
+import { DebouncedTextInput } from "@typebot.io/ui/components/DebouncedTextInput";
 import { LoaderCircleIcon } from "@typebot.io/ui/icons/LoaderCircleIcon";
 import { TriangleAlertIcon } from "@typebot.io/ui/icons/TriangleAlertIcon";
 import { cx } from "@typebot.io/ui/lib/cva";
@@ -8,7 +9,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createApi } from "unsplash-js";
 import type { Basic as UnsplashPhoto } from "unsplash-js/dist/methods/photos/types";
 import { useThemeValue } from "@/hooks/useThemeValue";
-import { DebouncedTextInput } from "../inputs/DebouncedTextInput";
 import { UnsplashLogo } from "../logos/UnsplashLogo";
 import { TextLink } from "../TextLink";
 
@@ -179,26 +179,24 @@ type UnsplashImageProps = {
 };
 
 const UnsplashImage = ({ image, onClick }: UnsplashImageProps) => {
-  const [isImageHovered, setIsImageHovered] = useState(false);
-
   const { user, urls, alt_description } = image;
 
   return (
-    <div
-      className="relative h-full"
-      onMouseEnter={() => setIsImageHovered(true)}
-      onMouseLeave={() => setIsImageHovered(false)}
-    >
-      <img
-        src={urls.thumb}
-        alt={alt_description ?? "Unsplash image"}
-        className="object-cover h-full cursor-pointer rounded-md"
+    <div className="group relative h-full">
+      <button
+        type="button"
+        className="size-full rounded-md cursor-pointer p-0 border-none bg-transparent"
         onClick={onClick}
-      />
+      >
+        <img
+          src={urls.thumb}
+          alt={alt_description ?? "Unsplash image"}
+          className="object-cover h-full rounded-md"
+        />
+      </button>
       <div
         className={cx(
-          "absolute px-2 rounded-md bottom-0 left-0 bg-black/50 opacity-0 transition-opacity duration-200",
-          isImageHovered ? "opacity-100" : "opacity-0",
+          "absolute px-2 rounded-md bottom-0 left-0 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100",
         )}
       >
         <TextLink

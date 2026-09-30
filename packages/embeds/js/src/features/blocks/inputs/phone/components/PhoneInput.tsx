@@ -4,11 +4,11 @@ import { guessDeviceIsMobile } from "@typebot.io/lib/guessDeviceIsMobile";
 import { phoneCountries } from "@typebot.io/lib/phoneCountries";
 import { isEmpty } from "@typebot.io/lib/utils";
 import { createSignal, For, onCleanup, onMount } from "solid-js";
-import { ChevronDownIcon } from "@/components/icons/ChevronDownIcon";
-import { ShortTextInput } from "@/components/inputs/ShortTextInput";
-import { SendButton } from "@/components/SendButton";
-import type { CommandData } from "@/features/commands/types";
-import type { InputSubmitContent } from "@/types";
+import { ChevronDownIcon } from "../../../../../components/icons/ChevronDownIcon";
+import { ShortTextInput } from "../../../../../components/inputs/ShortTextInput";
+import { SendButton } from "../../../../../components/SendButton";
+import type { InputSubmitContent } from "../../../../../types";
+import type { CommandData } from "../../../../commands/types";
 
 type PhoneInputProps = Pick<
   NonNullable<PhoneNumberInputBlock["options"]>,
@@ -68,8 +68,9 @@ export const PhoneInput = (props: PhoneInputProps) => {
     } else inputRef?.focus();
   };
 
-  const submitWhenEnter = (e: KeyboardEvent) => {
-    if (e.key === "Enter") submit();
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    submit();
   };
 
   const selectNewCountryCode = (
@@ -111,9 +112,9 @@ export const PhoneInput = (props: PhoneInputProps) => {
   };
 
   return (
-    <div
+    <form
       class="typebot-input-form flex w-full gap-2 items-end max-w-[350px]"
-      onKeyDown={submitWhenEnter}
+      onSubmit={handleSubmit}
     >
       <div class={"flex typebot-input w-full"}>
         <div class="relative typebot-country-select flex justify-center items-center">
@@ -158,9 +159,9 @@ export const PhoneInput = (props: PhoneInputProps) => {
           autofocus={!guessDeviceIsMobile()}
         />
       </div>
-      <SendButton type="button" class="h-[56px]" on:click={submit}>
+      <SendButton type="submit" class="h-14">
         {props.labels?.button}
       </SendButton>
-    </div>
+    </form>
   );
 };

@@ -21,7 +21,11 @@ export const parseSampleResult =
     currentGroupId: string,
     variables: Variable[],
   ): Promise<Record<string, string | boolean | undefined>> => {
-    const header = parseResultHeader(typebot, linkedTypebots);
+    const header = parseResultHeader({
+      typebot,
+      linkedTypebots,
+      includeSessionVariables: true,
+    });
     const linkedInputBlocks = await extractLinkedInputBlocks(
       typebot,
       linkedTypebots,
@@ -97,10 +101,7 @@ const parseResultSample = (
             (variable) =>
               cell.variableIds?.includes(variable.id) && variable.value,
           )?.value;
-          return {
-            ...resultSample,
-            [cell.label]: variableValue ?? "content",
-          };
+          resultSample[cell.label] = variableValue ?? "content";
         }
 
         return resultSample;
@@ -109,10 +110,8 @@ const parseResultSample = (
         (variable) => cell.variableIds?.includes(variable.id) && variable.value,
       )?.value;
       const value = variableValue ?? getSampleValue(inputBlock, userEmail);
-      return {
-        ...resultSample,
-        [cell.label]: value,
-      };
+      resultSample[cell.label] = value;
+      return resultSample;
     },
     {},
   );

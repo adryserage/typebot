@@ -5,7 +5,7 @@ import {
   Scripts,
   useNavigate,
 } from "@tanstack/react-router";
-import { z } from "@typebot.io/zod";
+import { z } from "zod";
 import css from "@/assets/globals.css?url";
 import { CookieConsentBot } from "@/components/CookieConsentBot";
 import { Footer } from "@/components/footer/Footer";
@@ -91,7 +91,7 @@ function RootComponent() {
             isOpen={cookieConsentStatus === "need-consent"}
             openDelay={HERO_ANIMATION_DELAY}
             onSubmit={(response) => {
-              setCookie(response);
+              void setCookie(response).catch(console.error);
               setCookieConsentStatus(response);
             }}
           />

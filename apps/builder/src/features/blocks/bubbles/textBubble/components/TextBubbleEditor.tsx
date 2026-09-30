@@ -13,7 +13,7 @@ import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
 import { CodeIcon } from "@typebot.io/ui/icons/CodeIcon";
 import type { Variable } from "@typebot.io/variables/schemas";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { VariablesCombobox } from "@/components/inputs/VariablesCombobox";
 import { useGraph } from "@/features/graph/providers/GraphProvider";
 import { useOutsideClick } from "@/hooks/useOutsideClick";
@@ -57,17 +57,15 @@ export const TextBubbleEditor = ({
     if (!variable) return;
     variablesPopoverControls.onClose();
     editor.tf.focus();
-    editor.tf.insertText("{{" + variable.name + "}}");
+    editor.tf.insertText(`{{${variable.name}}}`);
   };
-
-  useOutsideClick({
-    ref: containerRef,
-    handler: onClose,
-  });
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.shiftKey) return;
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onClose();
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      onChange(textEditorValueRef.current);
+      onClose();
+    }
   };
 
   const openVariablePopover = () => {
@@ -102,12 +100,14 @@ export const TextBubbleEditor = ({
     textEditorValueRef.current = options.value;
   };
 
-  useEffect(
-    () => () => {
+  useOutsideClick({
+    ref: containerRef,
+    handler: () => {
       onChange(textEditorValueRef.current);
+      onClose();
     },
-    [onChange],
-  );
+    ignoreSelectors: ["[data-base-ui-focusable]"],
+  });
 
   return (
     <Plate editor={editor} onChange={setTextEditorValue}>
@@ -146,6 +146,7 @@ export const TextBubbleEditor = ({
           }}
           onBlur={() => {
             if (!editor) return;
+            onChange(textEditorValueRef.current);
             rememberedSelection.current = editor.selection;
           }}
           aria-abel="Text editor"
@@ -158,8 +159,8 @@ export const TextBubbleEditor = ({
           <Popover.Trigger
             className="absolute"
             style={{
-              top: variablePopoverAnchorCoords?.top + "px",
-              left: variablePopoverAnchorCoords?.left + "px",
+              top: `${variablePopoverAnchorCoords?.top}px`,
+              left: `${variablePopoverAnchorCoords?.left}px`,
             }}
           />
           <Popover.Popup

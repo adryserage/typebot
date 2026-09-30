@@ -2,9 +2,9 @@ import {
   blockBaseSchema,
   optionBaseSchema,
 } from "@typebot.io/blocks-base/schemas";
-import { z } from "@typebot.io/zod";
+import { z } from "zod";
 import { InputBlockType } from "../constants";
-import { fileVisibilityOptions } from "./constants";
+import { fileCaptureModeOptions, fileVisibilityOptions } from "./constants";
 
 const fileInputOptionsV5Schema = optionBaseSchema.merge(
   z.object({
@@ -30,6 +30,7 @@ const fileInputOptionsV5Schema = optionBaseSchema.merge(
         types: z.array(z.string()).optional(),
       })
       .optional(),
+    capture: z.enum(fileCaptureModeOptions).optional(),
     sizeLimit: z.number().optional(),
     visibility: z.enum(fileVisibilityOptions).optional(),
   }),
@@ -50,20 +51,12 @@ const fileInputBlockV5Schema = blockBaseSchema.merge(
 );
 
 export const fileInputBlockSchemas = {
-  v5: fileInputBlockV5Schema.openapi({
-    title: "File input v5",
-    ref: "fileInputV5",
-  }),
-  v6: fileInputBlockV5Schema
-    .merge(
-      z.object({
-        options: fileInputOptionsSchemas.v6.optional(),
-      }),
-    )
-    .openapi({
-      title: "File",
-      ref: "fileInput",
+  v5: fileInputBlockV5Schema,
+  v6: fileInputBlockV5Schema.merge(
+    z.object({
+      options: fileInputOptionsSchemas.v6.optional(),
     }),
+  ),
 };
 
 const fileInputBlockSchema = z.union([

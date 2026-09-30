@@ -8,22 +8,32 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { createServerRootRoute } from '@tanstack/react-start/server'
-
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as HealthzRouteImport } from './routes/healthz'
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LayoutPricingRouteImport } from './routes/_layout/pricing'
 import { Route as LayoutOssFriendsRouteImport } from './routes/_layout/oss-friends'
 import { Route as LayoutAboutRouteImport } from './routes/_layout/about'
 import { Route as LayoutSlugRouteImport } from './routes/_layout/$slug'
+import { Route as LayoutTemplatesIndexRouteImport } from './routes/_layout/templates/index'
+import { Route as LayoutFaqIndexRouteImport } from './routes/_layout/faq/index'
 import { Route as LayoutBlogIndexRouteImport } from './routes/_layout/blog/index'
+import { Route as LayoutTemplatesSlugRouteImport } from './routes/_layout/templates/$slug'
+import { Route as LayoutFaqSlugRouteImport } from './routes/_layout/faq/$slug'
 import { Route as LayoutBlogSlugRouteImport } from './routes/_layout/blog/$slug'
-import { ServerRoute as SitemapDotxmlServerRouteImport } from './routes/sitemap[.]xml'
-import { ServerRoute as HealthzServerRouteImport } from './routes/healthz'
 
-const rootServerRouteImport = createServerRootRoute()
-
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthzRoute = HealthzRouteImport.update({
+  id: '/healthz',
+  path: '/healthz',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => rootRouteImport,
@@ -53,9 +63,29 @@ const LayoutSlugRoute = LayoutSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutTemplatesIndexRoute = LayoutTemplatesIndexRouteImport.update({
+  id: '/templates/',
+  path: '/templates/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutFaqIndexRoute = LayoutFaqIndexRouteImport.update({
+  id: '/faq/',
+  path: '/faq/',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutBlogIndexRoute = LayoutBlogIndexRouteImport.update({
   id: '/blog/',
   path: '/blog/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutTemplatesSlugRoute = LayoutTemplatesSlugRouteImport.update({
+  id: '/templates/$slug',
+  path: '/templates/$slug',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutFaqSlugRoute = LayoutFaqSlugRouteImport.update({
+  id: '/faq/$slug',
+  path: '/faq/$slug',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutBlogSlugRoute = LayoutBlogSlugRouteImport.update({
@@ -63,113 +93,130 @@ const LayoutBlogSlugRoute = LayoutBlogSlugRouteImport.update({
   path: '/blog/$slug',
   getParentRoute: () => LayoutRoute,
 } as any)
-const SitemapDotxmlServerRoute = SitemapDotxmlServerRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootServerRouteImport,
-} as any)
-const HealthzServerRoute = HealthzServerRouteImport.update({
-  id: '/healthz',
-  path: '/healthz',
-  getParentRoute: () => rootServerRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/healthz': typeof HealthzRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$slug': typeof LayoutSlugRoute
   '/about': typeof LayoutAboutRoute
   '/oss-friends': typeof LayoutOssFriendsRoute
   '/pricing': typeof LayoutPricingRoute
   '/blog/$slug': typeof LayoutBlogSlugRoute
-  '/blog': typeof LayoutBlogIndexRoute
+  '/faq/$slug': typeof LayoutFaqSlugRoute
+  '/templates/$slug': typeof LayoutTemplatesSlugRoute
+  '/blog/': typeof LayoutBlogIndexRoute
+  '/faq/': typeof LayoutFaqIndexRoute
+  '/templates/': typeof LayoutTemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/healthz': typeof HealthzRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$slug': typeof LayoutSlugRoute
   '/about': typeof LayoutAboutRoute
   '/oss-friends': typeof LayoutOssFriendsRoute
   '/pricing': typeof LayoutPricingRoute
   '/blog/$slug': typeof LayoutBlogSlugRoute
+  '/faq/$slug': typeof LayoutFaqSlugRoute
+  '/templates/$slug': typeof LayoutTemplatesSlugRoute
   '/blog': typeof LayoutBlogIndexRoute
+  '/faq': typeof LayoutFaqIndexRoute
+  '/templates': typeof LayoutTemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_layout': typeof LayoutRouteWithChildren
+  '/healthz': typeof HealthzRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_layout/$slug': typeof LayoutSlugRoute
   '/_layout/about': typeof LayoutAboutRoute
   '/_layout/oss-friends': typeof LayoutOssFriendsRoute
   '/_layout/pricing': typeof LayoutPricingRoute
   '/_layout/blog/$slug': typeof LayoutBlogSlugRoute
+  '/_layout/faq/$slug': typeof LayoutFaqSlugRoute
+  '/_layout/templates/$slug': typeof LayoutTemplatesSlugRoute
   '/_layout/blog/': typeof LayoutBlogIndexRoute
+  '/_layout/faq/': typeof LayoutFaqIndexRoute
+  '/_layout/templates/': typeof LayoutTemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/healthz'
+    | '/sitemap.xml'
     | '/$slug'
     | '/about'
     | '/oss-friends'
     | '/pricing'
     | '/blog/$slug'
-    | '/blog'
+    | '/faq/$slug'
+    | '/templates/$slug'
+    | '/blog/'
+    | '/faq/'
+    | '/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/healthz'
+    | '/sitemap.xml'
     | '/$slug'
     | '/about'
     | '/oss-friends'
     | '/pricing'
     | '/blog/$slug'
+    | '/faq/$slug'
+    | '/templates/$slug'
     | '/blog'
+    | '/faq'
+    | '/templates'
   id:
     | '__root__'
     | '/'
     | '/_layout'
+    | '/healthz'
+    | '/sitemap.xml'
     | '/_layout/$slug'
     | '/_layout/about'
     | '/_layout/oss-friends'
     | '/_layout/pricing'
     | '/_layout/blog/$slug'
+    | '/_layout/faq/$slug'
+    | '/_layout/templates/$slug'
     | '/_layout/blog/'
+    | '/_layout/faq/'
+    | '/_layout/templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LayoutRoute: typeof LayoutRouteWithChildren
-}
-export interface FileServerRoutesByFullPath {
-  '/healthz': typeof HealthzServerRoute
-  '/sitemap.xml': typeof SitemapDotxmlServerRoute
-}
-export interface FileServerRoutesByTo {
-  '/healthz': typeof HealthzServerRoute
-  '/sitemap.xml': typeof SitemapDotxmlServerRoute
-}
-export interface FileServerRoutesById {
-  __root__: typeof rootServerRouteImport
-  '/healthz': typeof HealthzServerRoute
-  '/sitemap.xml': typeof SitemapDotxmlServerRoute
-}
-export interface FileServerRouteTypes {
-  fileServerRoutesByFullPath: FileServerRoutesByFullPath
-  fullPaths: '/healthz' | '/sitemap.xml'
-  fileServerRoutesByTo: FileServerRoutesByTo
-  to: '/healthz' | '/sitemap.xml'
-  id: '__root__' | '/healthz' | '/sitemap.xml'
-  fileServerRoutesById: FileServerRoutesById
-}
-export interface RootServerRouteChildren {
-  HealthzServerRoute: typeof HealthzServerRoute
-  SitemapDotxmlServerRoute: typeof SitemapDotxmlServerRoute
+  HealthzRoute: typeof HealthzRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/healthz': {
+      id: '/healthz'
+      path: '/healthz'
+      fullPath: '/healthz'
+      preLoaderRoute: typeof HealthzRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_layout': {
       id: '/_layout'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -208,11 +255,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSlugRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/templates/': {
+      id: '/_layout/templates/'
+      path: '/templates'
+      fullPath: '/templates/'
+      preLoaderRoute: typeof LayoutTemplatesIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/faq/': {
+      id: '/_layout/faq/'
+      path: '/faq'
+      fullPath: '/faq/'
+      preLoaderRoute: typeof LayoutFaqIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/blog/': {
       id: '/_layout/blog/'
       path: '/blog'
-      fullPath: '/blog'
+      fullPath: '/blog/'
       preLoaderRoute: typeof LayoutBlogIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/templates/$slug': {
+      id: '/_layout/templates/$slug'
+      path: '/templates/$slug'
+      fullPath: '/templates/$slug'
+      preLoaderRoute: typeof LayoutTemplatesSlugRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/faq/$slug': {
+      id: '/_layout/faq/$slug'
+      path: '/faq/$slug'
+      fullPath: '/faq/$slug'
+      preLoaderRoute: typeof LayoutFaqSlugRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/blog/$slug': {
@@ -224,24 +299,6 @@ declare module '@tanstack/react-router' {
     }
   }
 }
-declare module '@tanstack/react-start/server' {
-  interface ServerFileRoutesByPath {
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlServerRouteImport
-      parentRoute: typeof rootServerRouteImport
-    }
-    '/healthz': {
-      id: '/healthz'
-      path: '/healthz'
-      fullPath: '/healthz'
-      preLoaderRoute: typeof HealthzServerRouteImport
-      parentRoute: typeof rootServerRouteImport
-    }
-  }
-}
 
 interface LayoutRouteChildren {
   LayoutSlugRoute: typeof LayoutSlugRoute
@@ -249,7 +306,11 @@ interface LayoutRouteChildren {
   LayoutOssFriendsRoute: typeof LayoutOssFriendsRoute
   LayoutPricingRoute: typeof LayoutPricingRoute
   LayoutBlogSlugRoute: typeof LayoutBlogSlugRoute
+  LayoutFaqSlugRoute: typeof LayoutFaqSlugRoute
+  LayoutTemplatesSlugRoute: typeof LayoutTemplatesSlugRoute
   LayoutBlogIndexRoute: typeof LayoutBlogIndexRoute
+  LayoutFaqIndexRoute: typeof LayoutFaqIndexRoute
+  LayoutTemplatesIndexRoute: typeof LayoutTemplatesIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
@@ -258,7 +319,11 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutOssFriendsRoute: LayoutOssFriendsRoute,
   LayoutPricingRoute: LayoutPricingRoute,
   LayoutBlogSlugRoute: LayoutBlogSlugRoute,
+  LayoutFaqSlugRoute: LayoutFaqSlugRoute,
+  LayoutTemplatesSlugRoute: LayoutTemplatesSlugRoute,
   LayoutBlogIndexRoute: LayoutBlogIndexRoute,
+  LayoutFaqIndexRoute: LayoutFaqIndexRoute,
+  LayoutTemplatesIndexRoute: LayoutTemplatesIndexRoute,
 }
 
 const LayoutRouteWithChildren =
@@ -267,14 +332,18 @@ const LayoutRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LayoutRoute: LayoutRouteWithChildren,
+  HealthzRoute: HealthzRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-const rootServerRouteChildren: RootServerRouteChildren = {
-  HealthzServerRoute: HealthzServerRoute,
-  SitemapDotxmlServerRoute: SitemapDotxmlServerRoute,
+
+import type { getRouter } from './router.ts'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
 }
-export const serverRouteTree = rootServerRouteImport
-  ._addFileChildren(rootServerRouteChildren)
-  ._addFileTypes<FileServerRouteTypes>()

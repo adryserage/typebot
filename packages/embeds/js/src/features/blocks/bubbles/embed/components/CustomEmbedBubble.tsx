@@ -1,9 +1,9 @@
 import type { CustomEmbedBubble as CustomEmbedBubbleProps } from "@typebot.io/chat-api/schemas";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { createSignal, onCleanup, onMount } from "solid-js";
-import { TypingBubble } from "@/components/TypingBubble";
-import { executeCode } from "@/features/blocks/logic/script/executeScript";
-import type { InputSubmitContent } from "@/types";
+import { TypingBubble } from "../../../../../components/TypingBubble";
+import type { InputSubmitContent } from "../../../../../types";
+import { executeCode } from "../../../logic/script/executeScript";
 
 type Props = {
   content: CustomEmbedBubbleProps["content"];
@@ -17,9 +17,7 @@ export const showAnimationDuration = 400;
 
 export const CustomEmbedBubble = (props: Props) => {
   let ref: HTMLDivElement | undefined;
-  const [isTyping, setIsTyping] = createSignal(
-    props.onTransitionEnd ? true : false,
-  );
+  const [isTyping, setIsTyping] = createSignal(!!props.onTransitionEnd);
   let containerRef: HTMLDivElement | undefined;
 
   onMount(() => {

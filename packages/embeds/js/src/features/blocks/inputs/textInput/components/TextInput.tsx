@@ -14,16 +14,20 @@ import {
   Show,
   Switch,
 } from "solid-js";
-import { Button } from "@/components/Button";
-import { MicrophoneIcon } from "@/components/icons/MicrophoneIcon";
-import { ShortTextInput } from "@/components/inputs/ShortTextInput";
-import { Textarea } from "@/components/inputs/Textarea";
-import { SendButton } from "@/components/SendButton";
-import { TextInputAddFileButton } from "@/components/TextInputAddFileButton";
-import type { CommandData } from "@/features/commands/types";
-import type { Attachment, BotContext, InputSubmitContent } from "@/types";
-import { guessApiHost } from "@/utils/guessApiHost";
-import { toaster } from "@/utils/toaster";
+import { Button } from "../../../../../components/Button";
+import { MicrophoneIcon } from "../../../../../components/icons/MicrophoneIcon";
+import { ShortTextInput } from "../../../../../components/inputs/ShortTextInput";
+import { Textarea } from "../../../../../components/inputs/Textarea";
+import { SendButton } from "../../../../../components/SendButton";
+import { TextInputAddFileButton } from "../../../../../components/TextInputAddFileButton";
+import type {
+  Attachment,
+  BotContext,
+  InputSubmitContent,
+} from "../../../../../types";
+import { guessApiHost } from "../../../../../utils/guessApiHost";
+import { toaster } from "../../../../../utils/toaster";
+import type { CommandData } from "../../../../commands/types";
 import { SelectedFile } from "../../fileUpload/components/SelectedFile";
 import { sanitizeNewFile } from "../../fileUpload/helpers/sanitizeSelectedFiles";
 import { uploadFiles } from "../../fileUpload/helpers/uploadFiles";
@@ -42,6 +46,7 @@ export const TextInput = (props: Props) => {
   const [uploadProgress, setUploadProgress] = createSignal<
     { fileIndex: number; progress: number } | undefined
   >(undefined);
+  const [isUploading, setIsUploading] = createSignal(false);
   const [isDraggingOver, setIsDraggingOver] = createSignal(false);
   const [recordingStatus, setRecordingStatus] = createSignal<
     "started" | "asking" | "stopped"
@@ -56,43 +61,57 @@ export const TextInput = (props: Props) => {
     inputRef?.value !== "" && inputRef?.reportValidity();
 
   const submit = async () => {
+    if (isUploading()) return;
     if (recordingStatus() === "started" && mediaRecorder) {
-      mediaRecorder.stop();
+      if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
       return;
     }
     if (checkIfInputIsValid()) {
       let attachments: Attachment[] | undefined;
       if (selectedFiles().length > 0) {
-        setUploadProgress(undefined);
-        const result = await uploadFiles({
-          apiHost:
-            props.context.apiHost ?? guessApiHost({ ignoreChatApiUrl: true }),
-          files: selectedFiles().map((file) => ({
-            file: file,
-            input: {
-              blockId: props.block.id,
-              sessionId: props.context.sessionId,
-              fileName: file.name,
-            },
-          })),
-          onUploadProgress: setUploadProgress,
-        });
-        if (result.type === "error") {
+        try {
+          setIsUploading(true);
+          setUploadProgress(undefined);
+          const result = await uploadFiles({
+            apiHost:
+              props.context.apiHost ?? guessApiHost({ ignoreChatApiUrl: true }),
+            files: selectedFiles().map((file) => ({
+              file: file,
+              input: {
+                blockId: props.block.id,
+                sessionId: props.context.sessionId,
+                fileName: file.name,
+              },
+            })),
+            onUploadProgress: setUploadProgress,
+          }).finally(() => {
+            setIsUploading(false);
+            setUploadProgress(undefined);
+          });
+
+          if (result.type === "error") {
+            toaster.create({
+              description: result.error,
+            });
+            return;
+          }
+          attachments = result.urls
+            ?.map((urls, index) =>
+              urls
+                ? {
+                    ...urls,
+                    blobUrl: URL.createObjectURL(selectedFiles()[index]),
+                  }
+                : null,
+            )
+            .filter(isDefined);
+        } catch (error) {
           toaster.create({
-            description: result.error,
+            description:
+              error instanceof Error ? error.message : "Could not upload file",
           });
           return;
         }
-        attachments = result.urls
-          ?.map((urls, index) =>
-            urls
-              ? {
-                  ...urls,
-                  blobUrl: URL.createObjectURL(selectedFiles()[index]),
-                }
-              : null,
-          )
-          .filter(isDefined);
       }
       props.onSubmit({
         type: "text",
@@ -102,9 +121,9 @@ export const TextInput = (props: Props) => {
     } else inputRef?.focus();
   };
 
-  const submitWhenEnter = (e: KeyboardEvent) => {
-    if (props.block.options?.isLong) return;
-    if (e.key === "Enter") submit();
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    submit();
   };
 
   const submitIfCtrlEnter = (e: KeyboardEvent) => {
@@ -182,6 +201,7 @@ export const TextInput = (props: Props) => {
   };
 
   const recordVoice = () => {
+    if (isUploading()) return;
     setRecordingStatus("asking");
   };
 
@@ -203,72 +223,96 @@ export const TextInput = (props: Props) => {
       if (recordingStatus() !== "started" || recordedChunks.length === 0)
         return;
 
-      const duration = Date.now() - startTime;
+      try {
+        setIsUploading(true);
+        setUploadProgress(undefined);
+        const duration = Date.now() - startTime;
 
-      const blob = await fixWebmDuration(
-        new Blob(recordedChunks, { type: mimeType }),
-        duration,
-      );
+        const blob = await fixWebmDuration(
+          new Blob(recordedChunks, { type: mimeType }),
+          duration,
+        );
 
-      const audioFile = new File(
-        [blob],
-        `rec-${props.block.id}-${Date.now()}.${
-          mimeType === "audio/webm" ? "webm" : "mp4"
-        }`,
-        {
-          type: mimeType,
-        },
-      );
-
-      setUploadProgress(undefined);
-      const result = await uploadFiles({
-        apiHost:
-          props.context.apiHost ?? guessApiHost({ ignoreChatApiUrl: true }),
-        files: [
+        const audioFile = new File(
+          [blob],
+          `rec-${props.block.id}-${Date.now()}.${
+            mimeType === "audio/webm" ? "webm" : "mp4"
+          }`,
           {
-            file: audioFile,
-            input: {
-              blockId: props.block.id,
-              sessionId: props.context.sessionId,
-              fileName: audioFile.name,
-            },
+            type: mimeType,
           },
-        ],
-        onUploadProgress: setUploadProgress,
-      });
-      if (result.type === "error") {
-        toaster.create({
-          description: result.error,
+        );
+
+        const result = await uploadFiles({
+          apiHost:
+            props.context.apiHost ?? guessApiHost({ ignoreChatApiUrl: true }),
+          files: [
+            {
+              file: audioFile,
+              input: {
+                blockId: props.block.id,
+                sessionId: props.context.sessionId,
+                fileName: audioFile.name,
+              },
+            },
+          ],
+          onUploadProgress: setUploadProgress,
+        }).finally(() => {
+          setIsUploading(false);
+          setUploadProgress(undefined);
         });
-        return;
+
+        if (result.type === "error") {
+          setRecordingStatus("stopped");
+          toaster.create({
+            description: result.error,
+          });
+          return;
+        }
+        const url = result.urls.find(isDefined)?.url;
+        if (!url) {
+          setRecordingStatus("stopped");
+          toaster.create({
+            description: "Could not upload audio file",
+          });
+          return;
+        }
+        props.onSubmit({
+          type: "recording",
+          url,
+          blobUrl: URL.createObjectURL(audioFile),
+        });
+      } catch (error) {
+        setIsUploading(false);
+        setUploadProgress(undefined);
+        setRecordingStatus("stopped");
+        toaster.create({
+          description:
+            error instanceof Error ? error.message : "Could not upload audio",
+        });
       }
-      const urls = result.urls.filter(isDefined).map((url) => url.url);
-      props.onSubmit({
-        type: "recording",
-        url: urls[0],
-        blobUrl: URL.createObjectURL(audioFile),
-      });
     };
     mediaRecorder.start();
     setRecordingStatus("started");
   };
 
   const handleRecordingAbort = () => {
-    mediaRecorder?.stop();
+    if (mediaRecorder && mediaRecorder.state !== "inactive")
+      mediaRecorder.stop();
     setRecordingStatus("stopped");
     mediaRecorder = undefined;
     recordedChunks = [];
   };
 
   return (
-    <div
+    <form
       class={cx(
         "typebot-input-form flex w-full gap-2 items-end",
         props.block.options?.isLong && recordingStatus() !== "started"
           ? "max-w-full"
           : "max-w-[350px]",
       )}
-      onKeyDown={submitWhenEnter}
+      onSubmit={handleSubmit}
       onDrop={handleDropFile}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -283,6 +327,7 @@ export const TextInput = (props: Props) => {
           recordingStatus={recordingStatus()}
           buttonsTheme={props.context.typebot.theme.chat?.buttons}
           context={props.context}
+          isAbortDisabled={isUploading()}
           onRecordingConfirmed={handleRecordingConfirmed}
           onAbortRecording={handleRecordingAbort}
         />
@@ -365,7 +410,9 @@ export const TextInput = (props: Props) => {
           }
         >
           <Button
-            class="h-[56px] flex items-center"
+            type="button"
+            isDisabled={isUploading()}
+            class="h-14 flex items-center"
             on:click={recordVoice}
             aria-label="Record voice"
           >
@@ -375,14 +422,14 @@ export const TextInput = (props: Props) => {
         <Match when={true}>
           <SendButton
             type="button"
+            isDisabled={isUploading()}
+            class="h-14"
             on:click={submit}
-            isDisabled={Boolean(uploadProgress())}
-            class="h-[56px]"
           >
             {props.block.options?.labels?.button}
           </SendButton>
         </Match>
       </Switch>
-    </div>
+    </form>
   );
 };

@@ -27,48 +27,34 @@ import {
   typebotV5Schema,
   typebotV6Schema,
 } from "@typebot.io/typebot/schemas/typebot";
-import { z } from "@typebot.io/zod";
+import { z } from "zod";
 import { clientSideActionSchema } from "./clientSideAction";
 
-const textMessageSchema = z
-  .object({
-    type: z.literal("text"),
-    text: z.string(),
-    metadata: z.object({ replyId: z.string().optional() }).optional(),
-    attachedFileUrls: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Can only be provided if current input block is a text input block that allows attachments",
-      ),
-  })
-  .openapi({
-    title: "Text",
-    ref: "textMessage",
-  });
+export const textMessageSchema = z.object({
+  type: z.literal("text"),
+  text: z.string(),
+  metadata: z.object({ replyId: z.string().optional() }).optional(),
+  attachedFileUrls: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Can only be provided if current input block is a text input block that allows attachments",
+    ),
+});
 
-const audioMessageSchema = z
+export const audioMessageSchema = z
   .object({
     type: z.literal("audio"),
     url: z.string(),
   })
   .describe(
     "Can only be provided if current input block is a text input block that allows audio clips",
-  )
-  .openapi({
-    title: "Audio",
-    ref: "audioMessage",
-  });
+  );
 
-const commandMessageSchema = z
-  .object({
-    type: z.literal("command"),
-    command: z.string(),
-  })
-  .openapi({
-    title: "Command",
-    ref: "commandMessage",
-  });
+export const commandMessageSchema = z.object({
+  type: z.literal("command"),
+  command: z.string(),
+});
 
 const inputMessageSchemas = [textMessageSchema, audioMessageSchema] as const;
 
@@ -83,65 +69,40 @@ export const inputMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type InputMessage = Exclude<Message, { type: "command" }>;
 
-const textBubbleSchema = z
-  .object({
-    type: z.literal(BubbleBlockType.TEXT),
-    content: z.discriminatedUnion("type", [
-      z.object({
-        type: z.literal("richText"),
-        richText: z.any(),
-      }),
-      z.object({
-        type: z.literal("markdown"),
-        markdown: z.string(),
-      }),
-    ]),
-  })
-  .openapi({
-    title: "Text",
-    ref: "textBubble",
-  });
+const textBubbleSchema = z.object({
+  type: z.literal(BubbleBlockType.TEXT),
+  content: z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("richText"),
+      richText: z.any(),
+    }),
+    z.object({
+      type: z.literal("markdown"),
+      markdown: z.string(),
+    }),
+  ]),
+});
 export type TextChatBubble = z.infer<typeof textBubbleSchema>;
 
-const imageBubbleSchema = z
-  .object({
-    type: z.enum([BubbleBlockType.IMAGE]),
-    content: imageBubbleContentSchema,
-  })
-  .openapi({
-    title: "Image",
-    ref: "imageBubble",
-  });
+const imageBubbleSchema = z.object({
+  type: z.enum([BubbleBlockType.IMAGE]),
+  content: imageBubbleContentSchema,
+});
 
-const videoBubbleSchema = z
-  .object({
-    type: z.enum([BubbleBlockType.VIDEO]),
-    content: videoBubbleContentSchema,
-  })
-  .openapi({
-    title: "Video",
-    ref: "videoBubble",
-  });
+const videoBubbleSchema = z.object({
+  type: z.enum([BubbleBlockType.VIDEO]),
+  content: videoBubbleContentSchema,
+});
 
-const audioBubbleSchema = z
-  .object({
-    type: z.enum([BubbleBlockType.AUDIO]),
-    content: audioBubbleContentSchema,
-  })
-  .openapi({
-    title: "Audio",
-    ref: "audioBubble",
-  });
+const audioBubbleSchema = z.object({
+  type: z.enum([BubbleBlockType.AUDIO]),
+  content: audioBubbleContentSchema,
+});
 
-const embedBubbleSchema = z
-  .object({
-    type: z.enum([BubbleBlockType.EMBED]),
-    content: embedBubbleContentSchema,
-  })
-  .openapi({
-    title: "Embed",
-    ref: "embedBubble",
-  });
+const embedBubbleSchema = z.object({
+  type: z.enum([BubbleBlockType.EMBED]),
+  content: embedBubbleContentSchema,
+});
 
 const displayEmbedBubbleSchema = z.object({
   url: z.string().optional(),
@@ -156,15 +117,10 @@ const displayEmbedBubbleSchema = z.object({
     content: z.string(),
   }),
 });
-const customBubbleSchema = z
-  .object({
-    type: z.literal("custom-embed"),
-    content: displayEmbedBubbleSchema,
-  })
-  .openapi({
-    title: "Custom embed",
-    ref: "customEmbedBubble",
-  });
+const customBubbleSchema = z.object({
+  type: z.literal("custom-embed"),
+  content: displayEmbedBubbleSchema,
+});
 export type CustomEmbedBubble = z.infer<typeof customBubbleSchema>;
 
 export const chatBubbleSchema = z
@@ -193,16 +149,9 @@ const startTypebotPick = {
   updatedAt: true,
   workspaceId: true,
 } as const;
-const startTypebotV5Schema = typebotV5Schema.pick(startTypebotPick).openapi({
-  title: "Typebot V5",
-  ref: "typebotV5",
-});
-type StartTypebotV5 = z.infer<typeof startTypebotV5Schema>;
+const startTypebotV5Schema = typebotV5Schema.pick(startTypebotPick);
 
-const startTypebotV6Schema = typebotV6Schema.pick(startTypebotPick).openapi({
-  title: "Typebot V6",
-  ref: "typebotV6",
-});
+const startTypebotV6Schema = typebotV6Schema.pick(startTypebotPick);
 export type StartTypebotV6 = z.infer<typeof startTypebotV6Schema>;
 
 export const startTypebotSchema = z
@@ -218,17 +167,21 @@ export const startTypebotSchema = z
       publicTypebotId: z.string().optional(),
     }),
   );
-export type StartTypebot = StartTypebotV6 | StartTypebotV5;
+export type StartTypebot = z.infer<typeof startTypebotSchema>;
+
+export const startFromGroupSchema = z.object({
+  type: z.literal("group"),
+  groupId: z.string(),
+});
+
+export const startFromEventSchema = z.object({
+  type: z.literal("event"),
+  eventId: z.string(),
+});
 
 export const startFromSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("group"),
-    groupId: z.string(),
-  }),
-  z.object({
-    type: z.literal("event"),
-    eventId: z.string(),
-  }),
+  startFromGroupSchema,
+  startFromEventSchema,
 ]);
 export type StartFrom = z.infer<typeof startFromSchema>;
 
@@ -253,17 +206,11 @@ const commonStartChatInputSchema = z.object({
       "If set to `true`, it will only register the session and not start the bot. This is used for 3rd party chat platforms as it can require a session to be registered before sending the first message.",
     ),
   prefilledVariables: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .optional()
     .describe(
       "[More info about prefilled variables.](../../editor/variables#prefilled-variables)",
-    )
-    .openapi({
-      example: {
-        "First name": "John",
-        Email: "john@gmail.com",
-      },
-    }),
+    ),
   textBubbleContentFormat: z.enum(["richText", "markdown"]).default("richText"),
 });
 export const startChatInputSchema = z
@@ -288,18 +235,19 @@ export const startPreviewChatInputSchema = z
       .describe(
         "[Where to find my bot's ID?](../how-to#how-to-find-my-typebotid)",
       ),
-    typebot: startTypebotSchema
-      .optional()
-      .describe(
-        "If set, it will override the typebot that is used to start the chat.",
-      ),
     sessionId: z
       .string()
       .optional()
       .describe(
-        "If provided, will be used as the session ID and will overwrite any existing session with the same ID.",
+        "Deprecated and ignored. Preview creation always returns a new session ID. Use the returned sessionId to continue the conversation; existing sessions are never replaced.",
       ),
     startFrom: startFromSchema.optional(),
+    isProgressBarEnabled: z
+      .boolean()
+      .optional()
+      .describe(
+        "Override whether progress tracking is enabled for this preview session.",
+      ),
   })
   .merge(commonStartChatInputSchema);
 export type StartPreviewChatInput = z.infer<typeof startPreviewChatInputSchema>;
@@ -385,6 +333,12 @@ const chatResponseBaseSchema = z.object({
 
 export const startChatResponseSchema = z
   .object({
+    previewWebhookRoom: z
+      .string()
+      .optional()
+      .describe(
+        "Webhook channel for a preview, independent of its session ID.",
+      ),
     sessionId: z
       .string()
       .describe("To save and use for /continueChat requests."),

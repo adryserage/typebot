@@ -6,19 +6,25 @@ import { byId, isNotEmpty } from "@typebot.io/lib/utils";
 import type { Variable } from "@typebot.io/variables/schemas";
 import type { ResultHeaderCell, ResultWithAnswers } from "./schemas/results";
 
-export const parseResultHeader = (
+export const parseResultHeader = ({
+  typebot,
+  linkedTypebots,
+  results,
+  includeSessionVariables = false,
+}: {
   typebot: {
     groups: Group[];
     variables: Variable[];
-  },
+  };
   linkedTypebots:
     | {
         groups: Group[];
         variables: Variable[];
       }[]
-    | undefined,
-  results?: ResultWithAnswers[],
-): ResultHeaderCell[] => {
+    | undefined;
+  results?: ResultWithAnswers[];
+  includeSessionVariables?: boolean;
+}): ResultHeaderCell[] => {
   const parsedGroups = [
     ...typebot.groups,
     ...(linkedTypebots ?? []).flatMap(
@@ -38,7 +44,11 @@ export const parseResultHeader = (
   return [
     { label: "Submitted at", id: "date" },
     ...inputsResultHeader,
-    ...parseVariablesHeaders(parsedVariables, inputsResultHeader),
+    ...parseVariablesHeaders({
+      variables: parsedVariables,
+      existingInputResultHeaders: inputsResultHeader,
+      includeSessionVariables,
+    }),
     ...parseResultsFromPreviousBotVersions({
       results: results ?? [],
       existingInputResultHeaders: inputsResultHeader,
@@ -116,7 +126,7 @@ const parseInputsResultHeader = ({
       ).length;
       const newHeaderCell: ResultHeaderCellWithBlock = {
         id: inputBlock.id,
-        label: label + ` (${totalPrevious})`,
+        label: `${label} (${totalPrevious})`,
         blocks: [
           {
             id: inputBlock.id,
@@ -128,7 +138,8 @@ const parseInputsResultHeader = ({
           ? [inputBlock.options.variableId]
           : undefined,
       };
-      return [...existingHeaders, newHeaderCell];
+      existingHeaders.push(newHeaderCell);
+      return existingHeaders;
     }
 
     const newHeaderCell: ResultHeaderCellWithBlock = {
@@ -146,19 +157,25 @@ const parseInputsResultHeader = ({
         : undefined,
     };
 
-    return [...existingHeaders, newHeaderCell];
+    existingHeaders.push(newHeaderCell);
+    return existingHeaders;
   }, []);
 
-const parseVariablesHeaders = (
-  variables: Variable[],
-  existingInputResultHeaders: ResultHeaderCell[],
-) =>
+const parseVariablesHeaders = ({
+  variables,
+  existingInputResultHeaders,
+  includeSessionVariables = false,
+}: {
+  variables: Variable[];
+  existingInputResultHeaders: ResultHeaderCell[];
+  includeSessionVariables?: boolean;
+}) =>
   variables.reduce<ResultHeaderCell[]>((existingHeaders, variable) => {
     if (
       existingInputResultHeaders.some((existingInputResultHeader) =>
         existingInputResultHeader.variableIds?.includes(variable.id),
       ) ||
-      variable.isSessionVariable
+      (!includeSessionVariables && variable.isSessionVariable)
     )
       return existingHeaders;
 
@@ -181,7 +198,8 @@ const parseVariablesHeaders = (
       variableIds: [variable.id],
     };
 
-    return [...existingHeaders, newHeaderCell];
+    existingHeaders.push(newHeaderCell);
+    return existingHeaders;
   }, []);
 
 const parseResultsFromPreviousBotVersions = ({
@@ -212,18 +230,16 @@ const parseResultsFromPreviousBotVersions = ({
         groups.find((group) =>
           group.blocks.some((block) => block.id === answer.blockId),
         )?.id ?? "";
-      return [
-        ...existingHeaders,
-        {
-          id: answer.blockId,
-          label: `${answer.blockId} (deleted block)`,
-          blocks: [
-            {
-              id: answer.blockId,
-              groupId,
-            },
-          ],
-          blockType: InputBlockType.TEXT,
-        },
-      ];
+      existingHeaders.push({
+        id: answer.blockId,
+        label: `${answer.blockId} (deleted block)`,
+        blocks: [
+          {
+            id: answer.blockId,
+            groupId,
+          },
+        ],
+        blockType: InputBlockType.TEXT,
+      });
+      return existingHeaders;
     }, []);

@@ -1,7 +1,11 @@
 import { createId } from "@paralleldrive/cuid2";
+import { chatsLimits, proChatTiers } from "@typebot.io/billing/constants";
 import { getChatsLimit } from "@typebot.io/billing/helpers/getChatsLimit";
 import { sendAlmostReachedChatsLimitEmail } from "@typebot.io/emails/transactional/AlmostReachedChatsLimitEmail";
+import { sendBillingCycleResetEmail } from "@typebot.io/emails/transactional/BillingCycleResetEmail";
+import { sendBillingCycleResetFailedEmail } from "@typebot.io/emails/transactional/BillingCycleResetFailedEmail";
 import { sendReachedChatsLimitEmail } from "@typebot.io/emails/transactional/ReachedChatsLimitEmail";
+import { env } from "@typebot.io/env";
 import { isDefined, isEmpty } from "@typebot.io/lib/utils";
 import { Plan, WorkspaceRole } from "@typebot.io/prisma/enum";
 import type { Prisma } from "@typebot.io/prisma/types";
@@ -16,20 +20,17 @@ const LIMIT_EMAIL_TRIGGER_PERCENT = 0.75;
 export const checkAndReportLastHourResults = async () => {
   console.log("Get collected results from the last hour...");
 
-  const results = await getLastHourResults();
+  const typebotIdsWithResults = await getLastHourActiveTypebotIds();
 
   console.log(
-    `Found ${results.reduce(
-      (total, result) => total + result._count._all,
-      0,
-    )} results collected for the last hour.`,
+    `Found ${typebotIdsWithResults.length} typebots with results collected for the last hour.`,
   );
 
   const workspaces = await prisma.workspace.findMany({
     where: {
       typebots: {
         some: {
-          id: { in: results.map((result) => result.typebotId) },
+          id: { in: typebotIdsWithResults },
         },
       },
     },
@@ -52,47 +53,61 @@ export const checkAndReportLastHourResults = async () => {
     },
   });
 
-  if (isEmpty(process.env.STRIPE_SECRET_KEY))
+  if (isEmpty(env.STRIPE_SECRET_KEY))
     throw new Error("Missing STRIPE_SECRET_KEY env variable");
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
     apiVersion: "2024-09-30.acacia",
   });
 
   const limitWarningEmailEvents: TelemetryEvent[] = [];
   const quarantineEvents: TelemetryEvent[] = [];
   const autoUpgradeEvents: TelemetryEvent[] = [];
+  const billingCycleResetEvents: TelemetryEvent[] = [];
 
   for (const workspace of workspaces) {
     if (workspace.isQuarantined) continue;
-    const chatsLimit = getChatsLimit(workspace);
     const subscription = await getSubscription(workspace, { stripe });
-    const { totalChatsUsed } = await getUsage({
+    const { totalChatsUsed, usagePeriodStart } = await getUsage({
       workspaceId: workspace.id,
       subscription,
     });
-    if (chatsLimit === "inf") continue;
+    const isEnterpriseUsageBasedSubscription =
+      workspace.plan === Plan.ENTERPRISE &&
+      isDefined(subscription && findMeteredSubscriptionItem(subscription));
+    const chatsLimit = isEnterpriseUsageBasedSubscription
+      ? "inf"
+      : getChatsLimit(workspace);
+    const enforcedChatsLimit =
+      workspace.chatsHardLimit ??
+      (chatsLimit === "inf" ? undefined : chatsLimit);
 
-    limitWarningEmailEvents.push(
-      ...(await sendLimitWarningEmails({
-        chatsLimit,
-        totalChatsUsed,
-        workspace,
-      })),
-    );
+    if (isDefined(enforcedChatsLimit))
+      limitWarningEmailEvents.push(
+        ...(await sendLimitWarningEmails({
+          chatsLimit: enforcedChatsLimit,
+          totalChatsUsed,
+          usagePeriodStart,
+          workspace,
+        })),
+      );
 
-    const isUsageBasedSubscription = isDefined(
-      subscription?.items.data.find(
-        (item) =>
-          item.price.id === process.env.STRIPE_STARTER_PRICE_ID ||
-          item.price.id === process.env.STRIPE_PRO_PRICE_ID,
-      ),
-    );
+    const isUsageBasedSubscription =
+      isEnterpriseUsageBasedSubscription ||
+      isDefined(
+        subscription?.items.data.find(
+          (item) =>
+            item.price.id === env.STRIPE_STARTER_PRICE_ID ||
+            item.price.id === env.STRIPE_PRO_PRICE_ID,
+        ),
+      );
 
     if (
       isUsageBasedSubscription &&
       subscription &&
-      (workspace.plan === "STARTER" || workspace.plan === "PRO")
+      (workspace.plan === "STARTER" ||
+        workspace.plan === "PRO" ||
+        workspace.plan === "ENTERPRISE")
     ) {
       if (workspace.plan === "STARTER" && totalChatsUsed >= 4000) {
         console.log(
@@ -106,17 +121,14 @@ export const checkAndReportLastHourResults = async () => {
           autoUpgradeEvents.push(
             ...workspace.members
               .filter((member) => member.role === WorkspaceRole.ADMIN)
-              .map(
-                (member) =>
-                  ({
-                    name: "Subscription automatically updated",
-                    userId: member.user.id,
-                    workspaceId: workspace.id,
-                    data: {
-                      plan: "PRO",
-                    },
-                  }) satisfies TelemetryEvent,
-              ),
+              .map((member) => ({
+                name: "Subscription automatically updated" as const,
+                userId: member.user.id,
+                workspaceId: workspace.id,
+                data: {
+                  plan: Plan.PRO,
+                },
+              })),
           );
           await reportUsageToStripe(totalChatsUsed, {
             stripe,
@@ -136,28 +148,94 @@ export const checkAndReportLastHourResults = async () => {
           quarantineEvents.push(
             ...workspace.members
               .filter((member) => member.role === WorkspaceRole.ADMIN)
-              .map(
-                (member) =>
-                  ({
-                    name: "Workspace automatically quarantined",
-                    userId: member.user.id,
-                    workspaceId: workspace.id,
-                    data: {
-                      reason: "auto upgrade payment failed",
-                    },
-                  }) satisfies TelemetryEvent,
-              ),
+              .map((member) => ({
+                name: "Workspace automatically quarantined" as const,
+                userId: member.user.id,
+                workspaceId: workspace.id,
+                data: {
+                  reason: "auto upgrade payment failed" as const,
+                },
+              })),
           );
         }
       } else {
         await reportUsageToStripe(totalChatsUsed, { stripe, subscription });
+
+        if (workspace.plan === "PRO") {
+          const isSuspicious = await isSuspiciousWorkspace(
+            subscription,
+            totalChatsUsed,
+            workspace.plan,
+            { stripe },
+          );
+
+          if (isSuspicious) {
+            console.log(
+              `Suspicious Pro workspace ${workspace.id} collected ${totalChatsUsed} chats, resetting billing cycle...`,
+            );
+            const adminMembers = workspace.members.filter(
+              (member) => member.role === WorkspaceRole.ADMIN,
+            );
+            const adminEmails = adminMembers
+              .map((member) => member.user.email)
+              .filter(isDefined);
+
+            try {
+              await chargeAndResetBillingCycle(subscription, { stripe });
+              console.log(
+                `Successfully reset billing cycle for workspace ${workspace.id}`,
+              );
+              await sendBillingCycleResetEmail({
+                to: adminEmails,
+                workspaceName: workspace.name,
+                totalChatsUsed,
+                url: `${process.env.NEXTAUTH_URL}/typebots?workspaceId=${workspace.id}`,
+              });
+              billingCycleResetEvents.push(
+                ...adminMembers.map((member) => ({
+                  name: "Billing cycle reset" as const,
+                  userId: member.user.id,
+                  workspaceId: workspace.id,
+                })),
+              );
+              continue;
+            } catch (error) {
+              console.error(
+                `Failed to reset billing cycle for workspace ${workspace.id}, quarantining...`,
+                error,
+              );
+              await sendBillingCycleResetFailedEmail({
+                to: adminEmails,
+                workspaceName: workspace.name,
+                totalChatsUsed,
+              });
+              await prisma.workspace.updateMany({
+                where: { id: workspace.id },
+                data: { isQuarantined: true },
+              });
+              quarantineEvents.push(
+                ...adminMembers.map((member) => ({
+                  name: "Workspace automatically quarantined" as const,
+                  userId: member.user.id,
+                  workspaceId: workspace.id,
+                  data: {
+                    reason:
+                      "suspicious billing cycle reset payment failed" as const,
+                  },
+                })),
+              );
+            }
+          }
+        }
       }
     }
 
     if (
-      (totalChatsUsed > chatsLimit * 1.5 && workspace.plan === Plan.FREE) ||
-      (isDefined(workspace.chatsHardLimit) &&
-        totalChatsUsed >= workspace.chatsHardLimit)
+      isDefined(enforcedChatsLimit) &&
+      ((workspace.plan === Plan.FREE &&
+        totalChatsUsed > enforcedChatsLimit * 1.5) ||
+        (isDefined(workspace.chatsHardLimit) &&
+          totalChatsUsed >= workspace.chatsHardLimit))
     ) {
       console.log(`Automatically quarantine workspace ${workspace.id}...`);
       await prisma.workspace.updateMany({
@@ -167,19 +245,16 @@ export const checkAndReportLastHourResults = async () => {
       quarantineEvents.push(
         ...workspace.members
           .filter((member) => member.role === WorkspaceRole.ADMIN)
-          .map(
-            (member) =>
-              ({
-                name: "Workspace automatically quarantined",
-                userId: member.user.id,
-                workspaceId: workspace.id,
-                data: {
-                  totalChatsUsed,
-                  chatsLimit: workspace.chatsHardLimit ?? chatsLimit,
-                  reason: "free limit reached",
-                },
-              }) satisfies TelemetryEvent,
-          ),
+          .map((member) => ({
+            name: "Workspace automatically quarantined" as const,
+            userId: member.user.id,
+            workspaceId: workspace.id,
+            data: {
+              totalChatsUsed,
+              chatsLimit: enforcedChatsLimit,
+              reason: "free limit reached" as const,
+            },
+          })),
       );
     }
   }
@@ -192,16 +267,15 @@ export const checkAndReportLastHourResults = async () => {
     },
     data: {
       lastActivityAt: new Date(),
-      inactiveFirstEmailSentAt: null,
-      inactiveSecondEmailSentAt: null,
     },
   });
 
-  console.log(
-    `Send ${limitWarningEmailEvents.length}, new results events and ${quarantineEvents.length} auto quarantine events...`,
+  await trackEvents(
+    limitWarningEmailEvents
+      .concat(quarantineEvents)
+      .concat(autoUpgradeEvents)
+      .concat(billingCycleResetEvents),
   );
-
-  await trackEvents(limitWarningEmailEvents.concat(quarantineEvents));
 };
 
 const getSubscription = async (
@@ -210,7 +284,9 @@ const getSubscription = async (
 ) => {
   if (
     !workspace.stripeId ||
-    (workspace.plan !== "STARTER" && workspace.plan !== "PRO")
+    (workspace.plan !== "STARTER" &&
+      workspace.plan !== "PRO" &&
+      workspace.plan !== "ENTERPRISE")
   )
     return;
   const subscriptions = await stripe.subscriptions.list({
@@ -232,21 +308,19 @@ const reportUsageToStripe = async (
     subscription,
   }: { stripe: Stripe; subscription: Stripe.Subscription },
 ) => {
-  if (
-    !process.env.STRIPE_STARTER_CHATS_PRICE_ID ||
-    !process.env.STRIPE_PRO_CHATS_PRICE_ID
-  )
+  if (!env.STRIPE_STARTER_CHATS_PRICE_ID || !env.STRIPE_PRO_CHATS_PRICE_ID)
     throw new Error(
       "Missing STRIPE_STARTER_CHATS_PRICE_ID or STRIPE_PRO_CHATS_PRICE_ID env variable",
     );
-  const subscriptionItem = subscription.items.data.find(
-    (item) =>
-      item.price.id === process.env.STRIPE_STARTER_CHATS_PRICE_ID ||
-      item.price.id === process.env.STRIPE_PRO_CHATS_PRICE_ID,
-  );
+  const subscriptionItem =
+    subscription.items.data.find(
+      (item) =>
+        item.price.id === env.STRIPE_STARTER_CHATS_PRICE_ID ||
+        item.price.id === env.STRIPE_PRO_CHATS_PRICE_ID,
+    ) ?? findMeteredSubscriptionItem(subscription);
 
   if (!subscriptionItem)
-    throw new Error(`Could not find subscription item for workspace`);
+    throw new Error("Could not find subscription item for workspace");
 
   const idempotencyKey = createId();
 
@@ -261,6 +335,11 @@ const reportUsageToStripe = async (
     },
   );
 };
+
+const findMeteredSubscriptionItem = (subscription: Stripe.Subscription) =>
+  subscription.items.data.find(
+    (item) => item.price.recurring?.usage_type === "metered",
+  );
 
 const getUsage = async ({
   workspaceId,
@@ -279,22 +358,23 @@ const getUsage = async ({
   });
 
   const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const usagePeriodStart = subscription
+    ? new Date(subscription.current_period_start * 1000)
+    : new Date(now.getFullYear(), now.getMonth(), 1);
 
   const totalChatsUsed = await prisma.result.count({
     where: {
       typebotId: { in: typebots.map((typebot) => typebot.id) },
       hasStarted: true,
       createdAt: {
-        gte: subscription
-          ? new Date(subscription.current_period_start * 1000)
-          : firstDayOfMonth,
+        gte: usagePeriodStart,
       },
     },
   });
 
   return {
     totalChatsUsed,
+    usagePeriodStart,
   };
 };
 
@@ -306,38 +386,37 @@ const autoUpgradeToPro = async (
   | { status: "error"; reason: "payment_required" | "unknown" }
 > => {
   if (
-    !process.env.STRIPE_STARTER_CHATS_PRICE_ID ||
-    !process.env.STRIPE_PRO_CHATS_PRICE_ID ||
-    !process.env.STRIPE_PRO_PRICE_ID ||
-    !process.env.STRIPE_STARTER_PRICE_ID
+    !env.STRIPE_STARTER_CHATS_PRICE_ID ||
+    !env.STRIPE_PRO_CHATS_PRICE_ID ||
+    !env.STRIPE_PRO_PRICE_ID ||
+    !env.STRIPE_STARTER_PRICE_ID
   )
     throw new Error(
       "Missing STRIPE_STARTER_CHATS_PRICE_ID or STRIPE_PRO_CHATS_PRICE_ID env variable",
     );
   const currentPlanItemId = subscription?.items.data.find((item) =>
-    [
-      process.env.STRIPE_PRO_PRICE_ID,
-      process.env.STRIPE_STARTER_PRICE_ID,
-    ].includes(item.price.id),
+    [env.STRIPE_PRO_PRICE_ID, env.STRIPE_STARTER_PRICE_ID].includes(
+      item.price.id,
+    ),
   )?.id;
 
   if (!currentPlanItemId)
-    throw new Error(`Could not find current plan item ID for workspace`);
+    throw new Error("Could not find current plan item ID for workspace");
 
   const newSubscription = await stripe.subscriptions.update(subscription.id, {
     items: [
       {
         id: currentPlanItemId,
-        price: process.env.STRIPE_PRO_PRICE_ID,
+        price: env.STRIPE_PRO_PRICE_ID,
         quantity: 1,
       },
       {
         id: subscription.items.data.find(
           (item) =>
-            item.price.id === process.env.STRIPE_STARTER_CHATS_PRICE_ID ||
-            item.price.id === process.env.STRIPE_PRO_CHATS_PRICE_ID,
+            item.price.id === env.STRIPE_STARTER_CHATS_PRICE_ID ||
+            item.price.id === env.STRIPE_PRO_CHATS_PRICE_ID,
         )?.id,
-        price: process.env.STRIPE_PRO_CHATS_PRICE_ID,
+        price: env.STRIPE_PRO_CHATS_PRICE_ID,
       },
     ],
     proration_behavior: "always_invoice",
@@ -360,10 +439,12 @@ const autoUpgradeToPro = async (
 async function sendLimitWarningEmails({
   chatsLimit,
   totalChatsUsed,
+  usagePeriodStart,
   workspace,
 }: {
   chatsLimit: number;
   totalChatsUsed: number;
+  usagePeriodStart: Date;
   workspace: Pick<
     Workspace,
     | "id"
@@ -387,7 +468,13 @@ async function sendLimitWarningEmails({
     (member) => member.role === WorkspaceRole.ADMIN,
   );
   const to = adminMembers.map((member) => member.user.email).filter(isDefined);
-  if (!workspace.chatsLimitFirstEmailSentAt) {
+  const hasSentFirstEmailThisPeriod =
+    isDefined(workspace.chatsLimitFirstEmailSentAt) &&
+    workspace.chatsLimitFirstEmailSentAt >= usagePeriodStart;
+  const hasSentSecondEmailThisPeriod =
+    isDefined(workspace.chatsLimitSecondEmailSentAt) &&
+    workspace.chatsLimitSecondEmailSentAt >= usagePeriodStart;
+  if (!hasSentFirstEmailThisPeriod) {
     console.log(`Send almost reached chats limit email to ${to.join(", ")}...`);
     try {
       await sendAlmostReachedChatsLimitEmail({
@@ -397,14 +484,11 @@ async function sendLimitWarningEmails({
         workspaceName: workspace.name,
       });
       emailEvents.push(
-        ...adminMembers.map(
-          (m) =>
-            ({
-              name: "Limit warning email sent",
-              userId: m.user.id,
-              workspaceId: workspace.id,
-            }) satisfies TelemetryEvent,
-        ),
+        ...adminMembers.map((m) => ({
+          name: "Limit warning email sent" as const,
+          userId: m.user.id,
+          workspaceId: workspace.id,
+        })),
       );
       await prisma.workspace.updateMany({
         where: { id: workspace.id },
@@ -417,7 +501,7 @@ async function sendLimitWarningEmails({
 
   if (
     totalChatsUsed >= limit &&
-    !workspace.chatsLimitSecondEmailSentAt &&
+    !hasSentSecondEmailThisPeriod &&
     (workspace.plan === Plan.FREE || isDefined(workspace.chatsHardLimit))
   ) {
     console.log(`Send reached chats limit email to ${to.join(", ")}...`);
@@ -425,17 +509,14 @@ async function sendLimitWarningEmails({
       await sendReachedChatsLimitEmail({
         to,
         chatsLimit: limit,
-        url: `${process.env.NEXTAUTH_URL}/typebots?workspaceId=${workspace.id}`,
+        url: `${env.NEXTAUTH_URL}/typebots?workspaceId=${workspace.id}`,
       });
       emailEvents.push(
-        ...adminMembers.map(
-          (m) =>
-            ({
-              name: "Limit reached email sent",
-              userId: m.user.id,
-              workspaceId: workspace.id,
-            }) satisfies TelemetryEvent,
-        ),
+        ...adminMembers.map((m) => ({
+          name: "Limit reached email sent" as const,
+          userId: m.user.id,
+          workspaceId: workspace.id,
+        })),
       );
       await prisma.workspace.updateMany({
         where: { id: workspace.id },
@@ -449,30 +530,144 @@ async function sendLimitWarningEmails({
   return emailEvents;
 }
 
-const getLastHourResults = async () => {
+export const getLastHourActiveTypebotIds = async () => {
   const zeroedMinutesHour = new Date();
   zeroedMinutesHour.setUTCMinutes(0, 0, 0);
   const hourAgo = new Date(zeroedMinutesHour.getTime() - 1000 * 60 * 60);
+  const todayMidnight = new Date();
+  todayMidnight.setUTCHours(0, 0, 0, 0);
 
-  const queryParams = {
-    by: ["typebotId"],
-    _count: {
-      _all: true,
-    },
+  const activePublicTypebots = await prisma.publicTypebot.findMany({
     where: {
+      lastActivityAt: {
+        gte: todayMidnight,
+      },
+    },
+    select: {
+      typebotId: true,
+    },
+  });
+  console.log(
+    "Found",
+    activePublicTypebots.length,
+    "active public typebots today",
+  );
+
+  const results = await prisma.result.findMany({
+    where: {
+      typebotId: {
+        in: activePublicTypebots.map(
+          (publicTypebot) => publicTypebot.typebotId,
+        ),
+      },
+      isArchived: false,
       hasStarted: true,
       createdAt: {
         lt: zeroedMinutesHour,
         gte: hourAgo,
       },
     },
-  } satisfies Prisma.Prisma.ResultGroupByArgs;
+    select: {
+      typebotId: true,
+    },
+    distinct: ["typebotId"],
+  });
 
-  try {
-    const response = await prisma.result.groupBy(queryParams);
-    return response;
-  } catch (err) {
-    console.error("Failed to get last hour results, retrying once...", err);
-    return prisma.result.groupBy(queryParams);
+  return results.map((r) => r.typebotId);
+};
+
+const isSuspiciousWorkspace = async (
+  subscription: Stripe.Subscription,
+  totalChatsUsed: number,
+  plan: "STARTER" | "PRO",
+  { stripe }: { stripe: Stripe },
+) => {
+  if (plan !== "PRO" || !env.STRIPE_PRO_CHATS_PRICE_ID) return false;
+
+  const proLimit = chatsLimits[Plan.PRO];
+  if (totalChatsUsed < proLimit) return false;
+
+  const daysSincePeriodStart = Math.max(
+    (Date.now() / 1000 - subscription.current_period_start) / 86400,
+    1,
+  );
+  const dailyAverage = totalChatsUsed / daysSincePeriodStart;
+  const expectedDailyRate = proLimit / 30;
+
+  if (dailyAverage <= expectedDailyRate * 3) return false;
+
+  const invoices = await stripe.invoices.list({
+    subscription: subscription.id,
+    status: "paid",
+    limit: 12,
+    expand: ["data.lines"],
+  });
+
+  const { totalPaidOverageCents, paidInvoiceWithOverageCount } =
+    invoices.data.reduce(
+      (acc, invoice) => {
+        const overageLines = invoice.lines.data.filter(
+          (line) =>
+            line.price?.id === env.STRIPE_PRO_CHATS_PRICE_ID && line.amount > 0,
+        );
+        const overageAmount = overageLines.reduce(
+          (sum, line) => sum + line.amount,
+          0,
+        );
+        return {
+          totalPaidOverageCents: acc.totalPaidOverageCents + overageAmount,
+          paidInvoiceWithOverageCount:
+            acc.paidInvoiceWithOverageCount + (overageLines.length > 0 ? 1 : 0),
+        };
+      },
+      { totalPaidOverageCents: 0, paidInvoiceWithOverageCount: 0 },
+    );
+
+  // Multiple invoices with overage payments establishes a payment pattern
+  if (paidInvoiceWithOverageCount >= 2) return false;
+
+  const currentOverageValueCents = computeProPlanChatsCost(totalChatsUsed);
+
+  // Trust if they've historically paid at least 30% of equivalent current overage
+  if (
+    totalPaidOverageCents > 0 &&
+    totalPaidOverageCents >= currentOverageValueCents * 0.3
+  ) {
+    return false;
   }
+
+  // Trust if subscription is at least 2 months old with at least one paid overage
+  const cycleLength = 30 * 24 * 60 * 60;
+  const monthsActive = (Date.now() / 1000 - subscription.created) / cycleLength;
+  if (monthsActive >= 2 && paidInvoiceWithOverageCount >= 1) return false;
+
+  return true;
+};
+
+const chargeAndResetBillingCycle = async (
+  subscription: Stripe.Subscription,
+  { stripe }: { stripe: Stripe },
+) =>
+  stripe.subscriptions.update(subscription.id, {
+    billing_cycle_anchor: "now",
+    proration_behavior: "create_prorations",
+    payment_behavior: "error_if_incomplete",
+  });
+
+const computeProPlanChatsCost = (totalChatsUsed: number): number => {
+  for (const tier of proChatTiers) {
+    if (tier.up_to === "inf") {
+      const previousTierLimit =
+        proChatTiers[proChatTiers.indexOf(tier) - 1]?.up_to;
+      if (typeof previousTierLimit !== "number") return 0;
+      const chatsInThisTier = totalChatsUsed - previousTierLimit;
+      const unitAmount =
+        "unit_amount_decimal" in tier ? tier.unit_amount_decimal : 0;
+      return chatsInThisTier * Number(unitAmount);
+    }
+    if (totalChatsUsed <= tier.up_to) {
+      return "flat_amount" in tier ? tier.flat_amount : 0;
+    }
+  }
+  return 0;
 };

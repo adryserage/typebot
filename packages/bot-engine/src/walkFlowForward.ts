@@ -1,5 +1,5 @@
+import { ORPCError } from "@orpc/server";
 import { createId } from "@paralleldrive/cuid2";
-import { TRPCError } from "@trpc/server";
 import { BubbleBlockType } from "@typebot.io/blocks-bubbles/constants";
 import {
   isBubbleBlock,
@@ -184,7 +184,7 @@ const executeGroup = async (
   const messages: ContinueChatResponse["messages"] = [];
   let clientSideActions: ContinueChatResponse["clientSideActions"] = [];
   let logs: ContinueChatResponse["logs"] = [];
-  let nextEdge;
+  let nextEdge: { id: string; isOffDefaultPath: boolean } | undefined;
   let lastBubbleBlockId: string | undefined = currentLastBubbleId;
   let updatedTimeoutStartTime = timeoutStartTime;
   const newSetVariableHistoryItems: SetVariableHistoryItem[] = [];
@@ -197,8 +197,7 @@ const executeGroup = async (
       env.CHAT_API_TIMEOUT &&
       Date.now() - updatedTimeoutStartTime > env.CHAT_API_TIMEOUT
     ) {
-      throw new TRPCError({
-        code: "TIMEOUT",
+      throw new ORPCError("TIMEOUT", {
         message: `${env.CHAT_API_TIMEOUT / 1000} seconds timeout reached`,
       });
     }

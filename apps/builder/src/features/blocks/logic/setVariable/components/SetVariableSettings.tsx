@@ -11,6 +11,7 @@ import { timeZones } from "@typebot.io/lib/timeZones";
 import { isDefined } from "@typebot.io/lib/utils";
 import { Alert } from "@typebot.io/ui/components/Alert";
 import { Badge } from "@typebot.io/ui/components/Badge";
+import { DebouncedTextInput } from "@typebot.io/ui/components/DebouncedTextInput";
 import { Field } from "@typebot.io/ui/components/Field";
 import { Label } from "@typebot.io/ui/components/Label";
 import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
@@ -22,11 +23,9 @@ import type { JSX } from "react";
 import { BasicSelect } from "@/components/inputs/BasicSelect";
 import { CodeEditor } from "@/components/inputs/CodeEditor";
 import { DebouncedTextareaWithVariablesButton } from "@/components/inputs/DebouncedTextarea";
-import { DebouncedTextInput } from "@/components/inputs/DebouncedTextInput";
 import { VariablesCombobox } from "@/components/inputs/VariablesCombobox";
 import { WhatsAppLogo } from "@/components/logos/WhatsAppLogo";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
-import { UnsafeScriptAlert } from "../../script/components/UnsafeScriptAlert";
 
 type Props = {
   options: SetVariableBlock["options"];
@@ -39,21 +38,27 @@ const setVarTypes = valueTypes.filter(
 
 export const SetVariableSettings = ({ options, onOptionsChange }: Props) => {
   const { typebot, updateVariable } = useTypebot();
+  const emptyOptions = {
+    type: undefined,
+  } satisfies SetVariableBlock["options"];
+  const baseOptions = options ?? emptyOptions;
   const selectedVariable = typebot?.variables.find(
     (variable) => variable.id === options?.variableId,
   );
 
   const updateVariableId = (variable?: Pick<Variable, "id">) =>
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       variableId: variable?.id,
     });
 
-  const updateValueType = (type?: string) =>
+  const updateValueType = (type?: string) => {
+    const nextType = valueTypes.find((value) => value === type);
     onOptionsChange({
-      ...options,
-      type: type as NonNullable<SetVariableBlock["options"]>["type"],
+      ...baseOptions,
+      type: nextType,
     });
+  };
 
   const updateIsSessionVariable = (isSavingInResults: boolean) => {
     if (!selectedVariable?.id) return;
@@ -89,6 +94,7 @@ export const SetVariableSettings = ({ options, onOptionsChange }: Props) => {
         <div className="flex flex-col gap-2">
           <p className="mb-0 font-medium">Value:</p>
           <BasicSelect
+            className="w-full"
             value={options?.type ?? defaultSetVariableOptions.type}
             items={setVarTypes.map((type) => ({
               label: type,
@@ -130,96 +136,101 @@ const SetVariableValue = ({
   options: SetVariableBlock["options"];
   onOptionsChange: (options: SetVariableBlock["options"]) => void;
 }): JSX.Element | null => {
+  const emptyOptions = {
+    type: undefined,
+  } satisfies SetVariableBlock["options"];
+  const baseOptions = options ?? emptyOptions;
   const updateExpression = (expressionToEvaluate: string) =>
     onOptionsChange({
-      ...options,
-      type: isDefined(options?.type) ? "Custom" : undefined,
+      ...baseOptions,
+      type: isDefined(baseOptions.type) ? "Custom" : undefined,
       expressionToEvaluate,
     });
 
   const updateClientExecution = (isExecutedOnClient: boolean) =>
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       isExecutedOnClient,
     });
 
   const updateListVariableId = (variable?: Pick<Variable, "id">) => {
-    if (!options || (options.type !== "Pop" && options.type !== "Shift"))
-      return;
+    if (baseOptions.type !== "Pop" && baseOptions.type !== "Shift") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       saveItemInVariableId: variable?.id,
     });
   };
 
   const updateItemVariableId = (variable?: Pick<Variable, "id">) => {
-    if (!options || options.type !== "Map item with same index") return;
+    if (baseOptions.type !== "Map item with same index") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       mapListItemParams: {
-        ...options.mapListItemParams,
+        ...baseOptions.mapListItemParams,
         baseItemVariableId: variable?.id,
       },
     });
   };
 
   const updateBaseListVariableId = (variable?: Pick<Variable, "id">) => {
-    if (!options || options.type !== "Map item with same index") return;
+    if (baseOptions.type !== "Map item with same index") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       mapListItemParams: {
-        ...options.mapListItemParams,
+        ...baseOptions.mapListItemParams,
         baseListVariableId: variable?.id,
       },
     });
   };
 
   const updateTargetListVariableId = (variable?: Pick<Variable, "id">) => {
-    if (!options || options.type !== "Map item with same index") return;
+    if (baseOptions.type !== "Map item with same index") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       mapListItemParams: {
-        ...options.mapListItemParams,
+        ...baseOptions.mapListItemParams,
         targetListVariableId: variable?.id,
       },
     });
   };
 
   const updateItem = (item: string) => {
-    if (!options || options.type !== "Append value(s)") return;
+    if (baseOptions.type !== "Append value(s)") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       item,
     });
   };
 
   const updateIsCode = (radio: "Text" | "Code") => {
-    if (options?.type && options.type !== "Custom") return;
+    if (baseOptions.type && baseOptions.type !== "Custom") return;
+    const currentExpressionDescription =
+      "expressionDescription" in baseOptions
+        ? baseOptions.expressionDescription
+        : undefined;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       expressionDescription:
-        radio !== "Code" ? undefined : options?.expressionDescription,
+        radio !== "Code" ? undefined : currentExpressionDescription,
       isCode: radio === "Code",
     });
   };
 
   const updateSaveErrorInVariableId = (variable?: Pick<Variable, "id">) => {
-    if (options?.type && options.type !== "Custom") return;
+    if (baseOptions.type && baseOptions.type !== "Custom") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       saveErrorInVariableId: variable?.id,
     });
   };
 
   const updateExpressionDescription = (description: string) => {
-    if (options?.type && options.type !== "Custom") return;
+    if (baseOptions.type && baseOptions.type !== "Custom") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       expressionDescription: description,
     });
   };
-
-  const updateIsUnsafe = () => onOptionsChange({ ...options, isUnsafe: false });
 
   switch (options?.type) {
     case "Custom":
@@ -253,7 +264,7 @@ const SetVariableValue = ({
               <CodeEditor
                 defaultValue={options?.expressionToEvaluate ?? ""}
                 onChange={updateExpression}
-                lang="javascript"
+                lang="js"
                 withLineNumbers={true}
               />
               <Field.Root className="flex-row items-center">
@@ -272,11 +283,6 @@ const SetVariableValue = ({
                   </MoreInfoTooltip>
                 </Field.Label>
               </Field.Root>
-              {options?.isUnsafe === true &&
-                options?.isExecutedOnClient === true &&
-                options.isCode && (
-                  <UnsafeScriptAlert onTrustClick={updateIsUnsafe} />
-                )}
               <Field.Root>
                 <Field.Label>Save error</Field.Label>
                 <VariablesCombobox
@@ -372,6 +378,7 @@ const SetVariableValue = ({
     case "Tomorrow": {
       return (
         <BasicSelect
+          className="w-full"
           items={timeZones}
           onChange={(timeZone) => onOptionsChange({ ...options, timeZone })}
           placeholder="Select time zone"

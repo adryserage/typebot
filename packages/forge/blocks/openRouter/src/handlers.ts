@@ -2,8 +2,8 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { runChatCompletion } from "@typebot.io/ai/runChatCompletion";
 import { runChatCompletionStream } from "@typebot.io/ai/runChatCompletionStream";
 import { createActionHandler, createFetcherHandler } from "@typebot.io/forge";
+import { ky } from "@typebot.io/lib/ky";
 import { parseUnknownError } from "@typebot.io/lib/parseUnknownError";
-import ky from "ky";
 import {
   createChatCompletion,
   modelsFetcher,
@@ -84,7 +84,7 @@ export default [
   createFetcherHandler(createChatCompletion, modelsFetcher.id, async () => {
     try {
       const response = await ky
-        .get(defaultOpenRouterOptions.baseUrl + "/models")
+        .get(`${defaultOpenRouterOptions.baseUrl}/models`)
         .json<ModelsResponse>();
 
       return {

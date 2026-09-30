@@ -10,13 +10,13 @@ import type {
   ResultHeaderCell,
   TableData,
 } from "@typebot.io/results/schemas/results";
+import type { TimeFilter } from "@typebot.io/results/timeFilter";
 import type { ResultsTablePreferences } from "@typebot.io/typebot/schemas/typebot";
 import { Button } from "@typebot.io/ui/components/Button";
 import { Checkbox } from "@typebot.io/ui/components/Checkbox";
 import { TextAlignLeftIcon } from "@typebot.io/ui/icons/TextAlignLeftIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { TimeFilterSelect } from "@/features/analytics/components/TimeFilterSelect";
-import type { timeFilterValues } from "@/features/analytics/constants";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
 import { HeaderIcon } from "../HeaderIcon";
 import { HeaderRow } from "./HeaderRow";
@@ -30,8 +30,8 @@ type ResultsTableProps = {
   data: TableData[];
   hasMore?: boolean;
   preferences?: ResultsTablePreferences;
-  timeFilter: (typeof timeFilterValues)[number];
-  onTimeFilterChange: (timeFilter: (typeof timeFilterValues)[number]) => void;
+  timeFilter: TimeFilter;
+  onTimeFilterChange: (timeFilter: TimeFilter) => void;
   onScrollToBottom: () => void;
   onLogOpenIndex: (index: number) => () => void;
   onResultExpandIndex: (index: number) => () => void;
@@ -210,21 +210,17 @@ export const ResultsTable = ({
     return () => {
       observer.disconnect();
     };
-    // We need to rerun this effect when the bottomElement changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleObserver, bottomElement.current]);
 
   return (
-    <div className="flex flex-col max-w-[1600px] px-4 overflow-y-hidden gap-6">
+    <div className="flex flex-col max-w-400 px-4 overflow-y-hidden gap-6">
       <div className="flex items-center gap-2 w-full justify-end">
-        {currentUserMode === "write" && (
-          <SelectionToolbar
-            selectedResultsId={Object.keys(rowSelection)}
-            onClearSelection={() => setRowSelection({})}
-          />
-        )}
+        <SelectionToolbar
+          selectedResultsId={Object.keys(rowSelection)}
+          onClearSelection={() => setRowSelection({})}
+          userMode={currentUserMode}
+        />
         <TimeFilterSelect
-          size="sm"
           timeFilter={timeFilter}
           onTimeFilterChange={onTimeFilterChange}
         />
@@ -234,6 +230,7 @@ export const ResultsTable = ({
           setColumnVisibility={changeColumnVisibility}
           columnOrder={columnsOrder}
           onColumnOrderChange={changeColumnOrder}
+          timeFilter={timeFilter}
         />
       </div>
       <div
@@ -263,9 +260,8 @@ export const ResultsTable = ({
             {hasMore === true && (
               <LoadingRows
                 totalColumns={
-                  resultHeader.filter(
-                    (header) => columnsVisibility[header.id] !== false,
-                  ).length + 1
+                  resultHeader.filter((header) => columnsVisibility[header.id])
+                    .length + 1
                 }
               />
             )}

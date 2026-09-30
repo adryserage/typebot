@@ -1,7 +1,7 @@
 import { createActionHandler } from "@typebot.io/forge";
+import { safeKy } from "@typebot.io/lib/ky";
 import { parseUnknownError } from "@typebot.io/lib/parseUnknownError";
 import { isDefined, isNotDefined } from "@typebot.io/lib/utils";
-import ky from "ky";
 import { searchRecords } from "../actions/searchRecords";
 import { defaultBaseUrl, defaultLimitForSearch } from "../constants";
 import { convertFilterToWhereClause } from "../helpers/convertFilterToWhereClause";
@@ -17,7 +17,7 @@ export const searchRecordsHandler = createActionHandler(searchRecords, {
   }) => {
     if (!apiKey) return logs.add("API key is required");
     try {
-      const data = await ky
+      const data = await safeKy
         .get(`${baseUrl ?? defaultBaseUrl}/api/v2/tables/${tableId}/records`, {
           headers: {
             "xc-token": apiKey,

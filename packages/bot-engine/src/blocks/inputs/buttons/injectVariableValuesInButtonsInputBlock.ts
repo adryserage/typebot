@@ -14,7 +14,12 @@ export const injectVariableValuesInButtonsInputBlock = (
   {
     sessionStore,
     variables,
-  }: { sessionStore: SessionStore; variables: Variable[] },
+    skipDisplayConditionCheck,
+  }: {
+    sessionStore: SessionStore;
+    variables: Variable[];
+    skipDisplayConditionCheck?: boolean;
+  },
 ): ChoiceInputBlock => {
   if (block.options?.dynamicVariableId) {
     const variable = variables.find(
@@ -31,14 +36,16 @@ export const injectVariableValuesInButtonsInputBlock = (
         sessionStore,
       }),
       items: uniqueValues.filter(isDefined).map((item, idx) => ({
-        id: "choice" + idx.toString(),
+        id: `choice${idx.toString()}`,
         blockId: block.id,
         content: item,
       })),
     };
   }
   return deepParseVariables(
-    filterChoiceItems(block, { sessionStore, variables }),
+    skipDisplayConditionCheck
+      ? block
+      : filterChoiceItems(block, { sessionStore, variables }),
     {
       variables,
       sessionStore,

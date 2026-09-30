@@ -1,11 +1,11 @@
 import type { GroupV6 } from "@typebot.io/groups/schemas";
 import { isEmpty, isNotDefined } from "@typebot.io/lib/utils";
 import { ContextMenu } from "@typebot.io/ui/components/ContextMenu";
+import { Editable } from "@typebot.io/ui/components/Editable";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { useDrag } from "@use-gesture/react";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { SingleLineEditable } from "@/components/SingleLineEditable";
 import { useEditor } from "@/features/editor/providers/EditorProvider";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
 import { groupWidth } from "@/features/graph/constants";
@@ -154,10 +154,11 @@ export const GroupNode = ({ group, groupIndex }: Props) => {
       disabled={isReadOnly}
     >
       <ContextMenu.Trigger>
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: This group container is a draggable graph surface with nested controls, not a standalone HTML action. */}
         <div
           style={
             {
-              "--group-width": groupWidth + "px",
+              "--group-width": `${groupWidth}px`,
               transform: `translate(${groupCoordinates?.x ?? 0}px, ${
                 groupCoordinates?.y ?? 0
               }px)`,
@@ -175,36 +176,33 @@ export const GroupNode = ({ group, groupIndex }: Props) => {
           )}
           ref={groupRef}
           id={`group-${group.id}`}
+          data-group-id={group.id}
           data-testid="group"
           data-selectable={group.id}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <SingleLineEditable
+          <Editable.Root
             value={groupTitle}
-            input={{
-              className: "prevent-group-drag",
-              onValueChange: setGroupTitle,
-            }}
-            preview={{
-              className: cx(
-                isEmpty(groupTitle) &&
-                  "absolute block left-4 top-2.5 w-[calc(100%-2rem)]  h-2",
-              ),
-            }}
-            onValueCommit={handleTitleSubmit}
             className="font-medium pr-8"
-          />
-          {typebot && (
-            <BlockNodesList
-              blocks={group.blocks}
-              groupIndex={groupIndex}
-              groupRef={groupRef}
+            onValueChange={setGroupTitle}
+            onValueCommit={handleTitleSubmit}
+          >
+            <Editable.Input className="prevent-group-drag" />
+            <Editable.Preview
+              className={cx(
+                isEmpty(groupTitle)
+                  ? "absolute block left-4 top-2.5 w-[calc(100%-2rem)] h-2"
+                  : "w-fit max-w-[calc(100%-2rem)]",
+              )}
             />
+          </Editable.Root>
+          {typebot && (
+            <BlockNodesList blocks={group.blocks} groupIndex={groupIndex} />
           )}
           {focusedGroups.length === 1 && isFocused && (
             <GroupFocusToolbar
-              className="absolute top-[-50px] right-0"
+              className="absolute -top-12.5 right-0"
               groupId={group.id}
               isReadOnly={isReadOnly}
               onPlayClick={startPreviewAtThisGroup}

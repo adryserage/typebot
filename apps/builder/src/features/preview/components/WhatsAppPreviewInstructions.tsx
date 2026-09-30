@@ -12,11 +12,7 @@ import { type FormEvent, useState } from "react";
 import { ButtonLink } from "@/components/ButtonLink";
 import { useEditor } from "@/features/editor/providers/EditorProvider";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
-import { trpc } from "@/lib/queryClient";
-import {
-  getPhoneNumberFromLocalStorage,
-  setPhoneNumberInLocalStorage,
-} from "../helpers/phoneNumberFromLocalStorage";
+import { orpc } from "@/lib/queryClient";
 
 export const WhatsAppPreviewInstructions = ({
   className,
@@ -25,23 +21,16 @@ export const WhatsAppPreviewInstructions = ({
 }) => {
   const { typebot, save } = useTypebot();
   const { startPreviewFrom } = useEditor();
-  const [phoneNumber, setPhoneNumber] = useState(
-    getPhoneNumberFromLocalStorage() ?? "",
-  );
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isMessageSent, setIsMessageSent] = useState(false);
   const [hasMessageBeenSent, setHasMessageBeenSent] = useState(false);
 
   const { mutate } = useMutation(
-    trpc.whatsApp.startWhatsAppPreview.mutationOptions({
+    orpc.whatsApp.startWhatsAppPreview.mutationOptions({
       onMutate: () => setIsSendingMessage(true),
       onSettled: () => setIsSendingMessage(false),
-      onSuccess: async (data) => {
-        if (
-          data?.message === "success" &&
-          phoneNumber !== getPhoneNumberFromLocalStorage()
-        )
-          setPhoneNumberInLocalStorage(phoneNumber);
+      onSuccess: async () => {
         setHasMessageBeenSent(true);
         setIsMessageSent(true);
         setTimeout(() => setIsMessageSent(false), 30000);
@@ -52,7 +41,7 @@ export const WhatsAppPreviewInstructions = ({
   const sendWhatsAppPreviewStartMessage = async (e: FormEvent) => {
     e.preventDefault();
     if (!typebot) return;
-    await save();
+    if ((await save()) === "failed") return;
     mutate({
       to: phoneNumber,
       typebotId: typebot.id,
@@ -76,7 +65,7 @@ export const WhatsAppPreviewInstructions = ({
       <div className="flex items-center gap-2 justify-end">
         <p className="text-sm">Need help?</p>
         <ButtonLink
-          href="https://docs.typebot.io/deploy/whatsapp/overview"
+          href="https://docs.typebot.com/deploy/whatsapp/overview"
           size="sm"
           variant="secondary"
         >
@@ -103,7 +92,7 @@ export const WhatsAppPreviewInstructions = ({
       )}
       {isMessageSent && (
         <div className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-bottom-2">
-          <ButtonLink href={`https://web.whatsapp.com/`} target="_blank">
+          <ButtonLink href={"https://web.whatsapp.com/"} target="_blank">
             Open WhatsApp Web
             <ArrowUpRight01Icon />
           </ButtonLink>

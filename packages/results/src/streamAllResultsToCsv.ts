@@ -1,17 +1,18 @@
+import { createWriteStream, type PathLike } from "node:fs";
+import type { Writable } from "node:stream";
 import { parseGroups } from "@typebot.io/groups/helpers/parseGroups";
 import type { GroupV6 } from "@typebot.io/groups/schemas";
 import { parseUniqueKey } from "@typebot.io/lib/parseUniqueKey";
 import { byId } from "@typebot.io/lib/utils";
 import prisma from "@typebot.io/prisma";
 import { typebotV6Schema } from "@typebot.io/typebot/schemas/typebot";
-import { z } from "@typebot.io/zod";
-import { createWriteStream, type PathLike } from "fs";
 import { unparse } from "papaparse";
-import type { Writable } from "stream";
+import { z } from "zod";
 import { convertResultsToTableData } from "./convertResultsToTableData";
 import { parseBlockIdVariableIdMap } from "./parseBlockIdVariableIdMap";
 import { parseColumnsOrder } from "./parseColumnsOrder";
 import { parseResultHeader } from "./parseResultHeader";
+import { sanitizeCsvCell } from "./sanitizeCsvCell";
 import { resultWithAnswersSchema } from "./schemas/results";
 
 const BATCH_SIZE = 500;
@@ -19,13 +20,17 @@ const BATCH_SIZE = 500;
 export const streamAllResultsToCsv = async (
   typebotId: string,
   {
+    full = false,
     writeStreamPath,
     writableStream,
     onProgressUpdate,
+    resultIds,
   }: {
+    full?: boolean;
     writeStreamPath?: PathLike;
     writableStream?: Writable;
     onProgressUpdate: (progress: number) => void;
+    resultIds?: string[];
   },
 ): Promise<
   | {
@@ -56,6 +61,7 @@ export const streamAllResultsToCsv = async (
       typebotId,
       hasStarted: true,
       isArchived: false,
+      id: resultIds ? { in: resultIds } : undefined,
     },
   });
 
@@ -72,13 +78,13 @@ export const streamAllResultsToCsv = async (
   const groups = parseGroups(typebot.groups, {
     typebotVersion: typebot.version,
   }) as GroupV6[];
-  const resultHeader = parseResultHeader(
-    {
+  const resultHeader = parseResultHeader({
+    typebot: {
       groups,
       variables: typebotV6Schema.shape.variables.parse(typebot?.variables),
     },
-    [],
-  );
+    linkedTypebots: [],
+  });
   const blockIdVariableIdMap = parseBlockIdVariableIdMap(groups);
 
   const resultsTablePreferences =
@@ -89,18 +95,19 @@ export const streamAllResultsToCsv = async (
     resultsTablePreferences?.columnsOrder,
     resultHeader,
   ).reduce<string[]>((currentHeaderIds, columnId) => {
-    if (resultsTablePreferences?.columnsVisibility[columnId] === false)
+    if (resultsTablePreferences?.columnsVisibility[columnId] === false && !full)
       return currentHeaderIds;
     const columnLabel = resultHeader.find(
       (headerCell) => headerCell.id === columnId,
     )?.id;
     if (!columnLabel) return currentHeaderIds;
-    return [...currentHeaderIds, columnLabel];
+    currentHeaderIds.push(columnLabel);
+    return currentHeaderIds;
   }, []);
 
   const csvHeaders = headerIds.map((headerId) => {
     const headerLabel = resultHeader.find(byId(headerId))?.label;
-    return headerLabel ?? headerId;
+    return sanitizeCsvCell(headerLabel ?? headerId);
   });
 
   const csvStream = writableStream ?? createWriteStream(writeStreamPath!);
@@ -117,7 +124,7 @@ export const streamAllResultsToCsv = async (
     });
 
     const processResults = async () => {
-      csvStream.write(unparse([csvHeaders]) + "\n");
+      csvStream.write(`${unparse([csvHeaders])}\n`);
 
       let lastCreatedAt: Date | null = null;
       const processedIds = new Set<string>();
@@ -129,6 +136,7 @@ export const streamAllResultsToCsv = async (
             await prisma.result.findMany({
               take: BATCH_SIZE,
               where: {
+                id: resultIds ? { in: resultIds } : undefined,
                 typebotId,
                 hasStarted: true,
                 isArchived: false,
@@ -173,14 +181,14 @@ export const streamAllResultsToCsv = async (
             const headerLabel = resultHeader.find(byId(headerId))?.label;
             if (!headerLabel) return;
             const newKey = parseUniqueKey(headerLabel, Object.keys(newObject));
-            newObject[newKey] = data[headerId]?.plainText;
+            newObject[newKey] = sanitizeCsvCell(data[headerId]?.plainText);
           });
           return newObject;
         });
 
         if (csvRows.length > 0) {
           const csvContent = unparse(csvRows, { header: false });
-          csvStream.write(csvContent + "\n");
+          csvStream.write(`${csvContent}\n`);
         }
 
         lastCreatedAt = batch[batch.length - 1].createdAt;

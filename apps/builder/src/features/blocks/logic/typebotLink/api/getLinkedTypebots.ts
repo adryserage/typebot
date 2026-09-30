@@ -1,5 +1,6 @@
-import { TRPCError } from "@trpc/server";
+import { ORPCError } from "@orpc/server";
 import { LogicBlockType } from "@typebot.io/blocks-logic/constants";
+import { authenticatedProcedure } from "@typebot.io/config/orpc/builder/middlewares";
 import { parseGroups } from "@typebot.io/groups/helpers/parseGroups";
 import { isDefined } from "@typebot.io/lib/utils";
 import prisma from "@typebot.io/prisma";
@@ -9,8 +10,7 @@ import {
   typebotV5Schema,
   typebotV6Schema,
 } from "@typebot.io/typebot/schemas/typebot";
-import { z } from "@typebot.io/zod";
-import { authenticatedProcedure } from "@/helpers/server/trpc";
+import { z } from "zod";
 
 const pick = {
   version: true,
@@ -32,14 +32,12 @@ const output = z.object({
 });
 
 export const getLinkedTypebots = authenticatedProcedure
-  .meta({
-    openapi: {
-      method: "GET",
-      path: "/v1/typebots/{typebotId}/linkedTypebots",
-      protect: true,
-      summary: "Get linked typebots",
-      tags: ["Typebot"],
-    },
+  .route({
+    method: "GET",
+    path: "/v1/typebots/{typebotId}/linkedTypebots",
+    operationId: "getLinkedTypebots",
+    summary: "Get linked typebots",
+    tags: ["Typebot"],
   })
   .input(
     z.object({
@@ -47,7 +45,7 @@ export const getLinkedTypebots = authenticatedProcedure
     }),
   )
   .output(output)
-  .query(async ({ input: { typebotId }, ctx: { user } }) => {
+  .handler(async ({ input: { typebotId }, context: { user } }) => {
     const typebot = await prisma.typebot.findFirst({
       where: {
         id: typebotId,
@@ -64,13 +62,16 @@ export const getLinkedTypebots = authenticatedProcedure
             isSuspended: true,
             isPastDue: true,
             members: {
+              where: { userId: user.id },
               select: {
                 userId: true,
+                role: true,
               },
             },
           },
         },
         collaborators: {
+          where: { userId: user.id },
           select: {
             type: true,
             userId: true,
@@ -80,7 +81,7 @@ export const getLinkedTypebots = authenticatedProcedure
     });
 
     if (!typebot || (await isReadTypebotForbidden(typebot, user)))
-      throw new TRPCError({ code: "NOT_FOUND", message: "No typebot found" });
+      throw new ORPCError("NOT_FOUND", { message: "No typebot found" });
 
     const linkedTypebotIds =
       parseGroups(typebot.groups, { typebotVersion: typebot.version })
@@ -88,49 +89,62 @@ export const getLinkedTypebots = authenticatedProcedure
         .reduce<string[]>((typebotIds, block) => {
           if (block.type !== LogicBlockType.TYPEBOT_LINK) return typebotIds;
           const typebotId = block.options?.typebotId;
-          return isDefined(typebotId) &&
+          if (
+            isDefined(typebotId) &&
             !typebotIds.includes(typebotId) &&
             block.options?.mergeResults !== false
-            ? [...typebotIds, typebotId]
-            : typebotIds;
+          )
+            typebotIds.push(typebotId);
+          return typebotIds;
         }, []) ?? [];
 
     if (!linkedTypebotIds.length) return { typebots: [] };
 
-    const typebots = (
-      await prisma.typebot.findMany({
-        where: {
-          isArchived: { not: true },
-          id: { in: linkedTypebotIds },
-        },
-        select: {
-          id: true,
-          version: true,
-          groups: true,
-          variables: true,
-          name: true,
-          createdAt: true,
-          workspace: {
-            select: {
-              isSuspended: true,
-              isPastDue: true,
-              members: {
-                select: {
-                  userId: true,
-                },
+    const fetchedTypebots = await prisma.typebot.findMany({
+      where: {
+        isArchived: { not: true },
+        id: { in: linkedTypebotIds },
+      },
+      select: {
+        id: true,
+        version: true,
+        groups: true,
+        variables: true,
+        name: true,
+        createdAt: true,
+        workspace: {
+          select: {
+            isSuspended: true,
+            isPastDue: true,
+            members: {
+              where: { userId: user.id },
+              select: {
+                userId: true,
+                role: true,
               },
             },
           },
-          collaborators: {
-            select: {
-              type: true,
-              userId: true,
-            },
+        },
+        collaborators: {
+          where: { userId: user.id },
+          select: {
+            type: true,
+            userId: true,
           },
         },
-      })
-    )
-      .filter(async (typebot) => !(await isReadTypebotForbidden(typebot, user)))
+      },
+    });
+
+    const accessChecks = await Promise.all(
+      fetchedTypebots.map(async (typebot) => ({
+        typebot,
+        forbidden: await isReadTypebotForbidden(typebot, user),
+      })),
+    );
+
+    const typebots = accessChecks
+      .filter(({ forbidden }) => !forbidden)
+      .map(({ typebot }) => typebot)
       // To avoid the out of sort memory error, we sort the typebots manually
       .sort((a, b) => {
         return b.createdAt.getTime() - a.createdAt.getTime();

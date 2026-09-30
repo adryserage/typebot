@@ -1,6 +1,6 @@
+import { Editable } from "@typebot.io/ui/components/Editable";
 import { useState } from "react";
 import { CopyButton } from "@/components/CopyButton";
-import { SingleLineEditable } from "@/components/SingleLineEditable";
 
 type EditableUrlProps = {
   hostname: string;
@@ -27,20 +27,15 @@ export const EditableUrl = ({
     <div className="flex items-center gap-2">
       <div className="flex items-center gap-1">
         <p className="shrink-0">{hostname}/</p>
-        <SingleLineEditable
+        <Editable.Root
           value={value}
-          className="font-medium"
-          common={{
-            className: "px-2",
-          }}
-          input={{
-            onValueChange: setValue,
-          }}
-          preview={{
-            className: "border-gray-7 cursor-text",
-          }}
+          className="font-medium max-w-xs"
+          onValueChange={setValue}
           onValueCommit={handleSubmit}
-        />
+        >
+          <Editable.Input className="px-2" />
+          <Editable.Preview className="border-gray-7 cursor-text px-2" />
+        </Editable.Root>
       </div>
       <CopyButton textToCopy={`${hostname}/${value ?? ""}`} />
     </div>

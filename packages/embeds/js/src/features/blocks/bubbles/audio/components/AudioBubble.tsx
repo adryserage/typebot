@@ -2,7 +2,7 @@ import { defaultAudioBubbleContent } from "@typebot.io/blocks-bubbles/audio/cons
 import type { AudioBubbleBlock } from "@typebot.io/blocks-bubbles/audio/schema";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { createSignal, onCleanup, onMount } from "solid-js";
-import { TypingBubble } from "@/components/TypingBubble";
+import { TypingBubble } from "../../../../../components/TypingBubble";
 
 type Props = {
   content: AudioBubbleBlock["content"];
@@ -18,9 +18,7 @@ export const AudioBubble = (props: Props) => {
   let isPlayed = false;
   let ref: HTMLDivElement | undefined;
   let audioElement: HTMLAudioElement | undefined;
-  const [isTyping, setIsTyping] = createSignal(
-    props.onTransitionEnd ? true : false,
-  );
+  const [isTyping, setIsTyping] = createSignal(!!props.onTransitionEnd);
 
   onMount(() => {
     typingTimeout = setTimeout(() => {
@@ -54,6 +52,7 @@ export const AudioBubble = (props: Props) => {
           >
             {isTyping() && <TypingBubble />}
           </div>
+          {/* biome-ignore lint/a11y/useMediaCaption: Captions are not available for dynamically configured audio bubble sources. */}
           <audio
             ref={audioElement}
             src={props.content?.url}

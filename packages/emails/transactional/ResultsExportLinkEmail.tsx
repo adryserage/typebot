@@ -1,9 +1,12 @@
 import { Body, Container, Head, Hr, Html, Text } from "@react-email/components";
 import { render } from "@react-email/render";
 import type { ComponentProps } from "react";
+import * as React from "react";
 import { sendEmail } from "../helpers/sendEmail";
 import { Logo } from "./components/Logo";
 import { container, footerText, hr, main, paragraph } from "./styles";
+
+void React;
 
 interface Props {
   typebotName: string;
@@ -40,11 +43,15 @@ ResultsExportLinkEmail.PreviewProps = {
 
 export default ResultsExportLinkEmail;
 
+export const renderResultsExportLinkEmail = (
+  props: ComponentProps<typeof ResultsExportLinkEmail>,
+) => render(<ResultsExportLinkEmail {...props} />);
+
 export const sendResultsExportLinkEmail = async (
   props: ComponentProps<typeof ResultsExportLinkEmail>,
 ) =>
   sendEmail({
     to: props.email,
-    subject: `Your results export is ready`,
+    subject: "Your results export is ready",
     html: await render(<ResultsExportLinkEmail {...props} />),
   });

@@ -1,9 +1,10 @@
 import { parseVideoUrl } from "@typebot.io/blocks-bubbles/video/helpers";
 import { createActionHandler } from "@typebot.io/forge";
 import { extensionFromMimeType } from "@typebot.io/lib/extensionFromMimeType";
+import { ky, safeKy } from "@typebot.io/lib/ky";
 import { parseUnknownError } from "@typebot.io/lib/parseUnknownError";
 import { isDefined } from "@typebot.io/lib/utils";
-import ky, { HTTPError } from "ky";
+import { HTTPError } from "ky";
 import { sendFeedEvent } from "../actions/sendFeedEvent";
 import { baseUrl } from "../constants";
 
@@ -62,7 +63,7 @@ export const sendFeedEventHandler = createActionHandler(sendFeedEvent, {
                 })),
               };
 
-            case "YouTube":
+            case "YouTube": {
               if (!section.link) return;
               const { id } = parseVideoUrl(section.link);
               if (!id) return logs.add("Invalid YouTube URL.");
@@ -70,6 +71,7 @@ export const sendFeedEventHandler = createActionHandler(sendFeedEvent, {
                 type: "youtube",
                 video_id: id,
               };
+            }
 
             case "Link":
               return {
@@ -104,14 +106,19 @@ export const sendFeedEventHandler = createActionHandler(sendFeedEvent, {
 
             case "Attachment": {
               if (!section.url) return;
-              const { headers } = await ky.head(section.url);
+              const { headers } = await safeKy.head(section.url);
               const extension =
                 extensionFromMimeType[headers.get("content-type") ?? ""];
               const fileName =
                 headers.get("content-disposition")?.split("filename=")[1] ??
                 section.url.split("/").pop();
               const fileSize = Number(headers.get("content-length"));
-              if (!fileName || !extension || !fileSize || isNaN(fileSize))
+              if (
+                !fileName ||
+                !extension ||
+                !fileSize ||
+                Number.isNaN(fileSize)
+              )
                 return logs.add(
                   "Could not get proper file attachement metadata.",
                 );

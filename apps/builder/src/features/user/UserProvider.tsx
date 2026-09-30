@@ -1,4 +1,7 @@
+import { useMutation } from "@tanstack/react-query";
+import { refreshSessionUser } from "@typebot.io/auth/helpers/refreshSessionUser";
 import { env } from "@typebot.io/env";
+import { datesAreOnSameDay } from "@typebot.io/lib/datesAreOnSameDay";
 import { isDefined } from "@typebot.io/lib/utils";
 import type { ClientUser, UpdateUser, User } from "@typebot.io/user/schemas";
 import { useRouter } from "next/router";
@@ -6,10 +9,9 @@ import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import type { ReactNode } from "react";
 import { createContext, useEffect, useState } from "react";
-import { datesAreOnSameDay } from "@/helpers/datesAreOnSameDate";
 import { useDebounce } from "@/hooks/useDebounce";
+import { orpc } from "@/lib/queryClient";
 import { setLocaleInCookies } from "./helpers/setLocaleInCookies";
-import { useUpdateUserMutation } from "./hooks/useUpdateUserMutation";
 
 export const userContext = createContext<{
   user?: ClientUser;
@@ -32,7 +34,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
   const [localUser, setLocalUser] = useState<ClientUser>();
 
-  const updateUserMutation = useUpdateUserMutation();
+  const updateUserMutation = useMutation(
+    orpc.user.update.mutationOptions({
+      onSettled: () => {
+        refreshSessionUser();
+      },
+    }),
+  );
 
   useEffect(() => {
     if (theme === (localUser?.preferredAppAppearance ?? "system")) return;
@@ -87,7 +95,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const currentLocale = router.locale;
 
     if (preferredLanguage && preferredLanguage !== currentLocale) {
-      setLocaleInCookies(preferredLanguage);
+      void setLocaleInCookies(preferredLanguage).catch(console.error);
       router.replace(
         {
           pathname: router.pathname,

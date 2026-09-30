@@ -1,6 +1,5 @@
 import { singleVariableOrNumberSchema } from "@typebot.io/variables/schemas";
-import type { ZodLayoutMetadata } from "@typebot.io/zod";
-import { z } from "@typebot.io/zod";
+import { z } from "zod";
 import type {
   ActionDefinition,
   ActionHandler,
@@ -8,6 +7,7 @@ import type {
   BlockDefinition,
   FetcherHandler,
 } from "./types";
+import type { ZodLayoutMetadata } from "./zodLayout";
 
 export const createAuth = <T extends AuthDefinition<any>>(authDefinition: T) =>
   authDefinition;
@@ -31,8 +31,12 @@ export const createVersionedBlock = <
 
 export const createAction = <
   A extends AuthDefinition<any>,
-  BaseOptions extends z.ZodObject<z.ZodRawShape> = z.ZodObject<{}>,
-  O extends z.ZodObject<z.ZodRawShape> = z.ZodObject<{}>,
+  BaseOptions extends z.ZodObject<z.ZodRawShape> = z.ZodObject<
+    Record<never, z.ZodTypeAny>
+  >,
+  O extends z.ZodObject<z.ZodRawShape> = z.ZodObject<
+    Record<never, z.ZodTypeAny>
+  >,
 >(
   actionDefinition: {
     auth?: A;
@@ -42,10 +46,15 @@ export const createAction = <
 
 export const createActionHandler = <
   Auth extends AuthDefinition<any>,
-  BaseOptions extends z.ZodObject<z.ZodRawShape> = z.ZodObject<{}>,
-  Options extends z.ZodObject<z.ZodRawShape> = z.ZodObject<{}>,
+  BaseOptions extends z.ZodObject<z.ZodRawShape> = z.ZodObject<
+    Record<never, z.ZodTypeAny>
+  >,
+  Options extends z.ZodObject<z.ZodRawShape> = z.ZodObject<
+    Record<never, z.ZodTypeAny>
+  >,
 >(
   action: ActionDefinition<Auth, BaseOptions, Options> & {
+    auth?: Auth;
     baseOptions?: BaseOptions;
   },
   handler: Omit<
@@ -60,10 +69,15 @@ export const createActionHandler = <
 
 export const createFetcherHandler = <
   Auth extends AuthDefinition<any>,
-  BaseOptions extends z.ZodObject<z.ZodRawShape> = z.ZodObject<{}>,
-  Options extends z.ZodObject<z.ZodRawShape> = z.ZodObject<{}>,
+  BaseOptions extends z.ZodObject<z.ZodRawShape> = z.ZodObject<
+    Record<never, z.ZodTypeAny>
+  >,
+  Options extends z.ZodObject<z.ZodRawShape> = z.ZodObject<
+    Record<never, z.ZodTypeAny>
+  >,
 >(
   _action: ActionDefinition<Auth, BaseOptions, Options> & {
+    auth?: Auth;
     baseOptions?: BaseOptions;
   },
   fetcherId: string,
@@ -111,17 +125,12 @@ export const parseBlockSchema = <
             .merge(action.options ?? z.object({})),
     ),
   ]);
-  return z
-    .object({
-      id: z.string(),
-      outgoingEdgeId: z.string().optional(),
-      type: z.literal(blockDefinition.id),
-      options: options.optional(),
-    })
-    .openapi({
-      title: blockDefinition.name,
-      ref: `${blockDefinition.id}Block`,
-    });
+  return z.object({
+    id: z.string(),
+    outgoingEdgeId: z.string().optional(),
+    type: z.literal(blockDefinition.id),
+    options: options.optional(),
+  });
 };
 
 export const parseBlockCredentials = <
@@ -166,24 +175,23 @@ export const option = {
   array: <T extends z.ZodTypeAny>(schema: T) => z.array(schema).optional(),
   discriminatedUnion: <
     T extends string,
-    J extends [
-      z.ZodDiscriminatedUnionOption<T>,
-      ...z.ZodDiscriminatedUnionOption<T>[],
+    J extends readonly [
+      z.ZodObject<z.ZodRawShape>,
+      ...z.ZodObject<z.ZodRawShape>[],
     ],
   >(
     field: T,
     schemas: J,
   ) =>
-    // @ts-expect-error
-    z.discriminatedUnion<T, J>(field, [
+    z.discriminatedUnion(field, [
       z.object({ [field]: z.undefined() }),
       ...schemas,
-    ]),
+    ] as const),
   saveResponseArray: <I extends readonly [string, ...string[]]>(
     items: I,
     layouts?: {
-      item?: ZodLayoutMetadata<z.ZodTypeAny>;
-      variableId?: ZodLayoutMetadata<z.ZodTypeAny>;
+      item?: ZodLayoutMetadata<I[number]>;
+      variableId?: ZodLayoutMetadata<string>;
     },
   ) =>
     z
@@ -192,16 +200,20 @@ export const option = {
           item: z
             .enum(items)
             .optional()
-            .layout({
-              ...(layouts?.item ?? {}),
-              placeholder: "Select a response",
+            .meta({
+              layout: {
+                ...(layouts?.item ?? {}),
+                placeholder: "Select a response",
+              },
             }),
           variableId: z
             .string()
             .optional()
-            .layout({
-              ...(layouts?.variableId ?? {}),
-              inputType: "variableDropdown",
+            .meta({
+              layout: {
+                ...(layouts?.variableId ?? {}),
+                inputType: "variableDropdown",
+              },
             }),
         }),
       )
@@ -217,24 +229,34 @@ export const option = {
       .object({
         comparisons: z.array(
           z.object({
-            input: z.string().optional().layout({ label: "Enter a field " }),
+            input: z
+              .string()
+              .optional()
+              .meta({ layout: { label: "Enter a field " } }),
             operator: z
               .enum(operators)
               .optional()
-              .layout({ defaultValue: "Equal to" }),
+              .meta({ layout: { defaultValue: "Equal to" } }),
             value: z
               .string()
               .optional()
-              .layout({ placeholder: "Enter a value" }),
+              .meta({ layout: { placeholder: "Enter a value" } }),
           }),
         ),
-        joiner: z.enum(["AND", "OR"]).optional().layout({
-          placeholder: "Select joiner",
-          isHidden: isJoinerHidden,
-        }),
+        joiner: z
+          .enum(["AND", "OR"])
+          .optional()
+          .meta({
+            layout: {
+              placeholder: "Select joiner",
+              isHidden: isJoinerHidden,
+            },
+          }),
       })
       .optional(),
 };
+
+export type { ZodLayoutMetadata } from "./zodLayout";
 
 const defaultFilterOperators = [
   "Equal to",

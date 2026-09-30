@@ -4,10 +4,14 @@
   "type": "module",
   "private": true,
   "exports": {
-    "./*": "./src/*.ts"
+    "./*": {
+      "types": "./src/*.ts",
+      "import": "./src/*.ts",
+      "default": "./src/*.ts"
+    },
+    "./package.json": "./package.json"
   },
   "dependencies": {
-    "@typebot.io/zod": "workspace:*",
     "@typebot.io/openai-block": "workspace:*",
     "@typebot.io/cal-com-block": "workspace:*",
     "@typebot.io/chat-node-block": "workspace:*",
@@ -26,9 +30,7 @@
     "@typebot.io/perplexity-block": "workspace:*",
     "@typebot.io/deepseek-block": "workspace:*",
     "@typebot.io/blink-block": "workspace:*",
-    "@typebot.io/gmail-block": "workspace:*"
-  },
-  "devDependencies": {
-    "@typebot.io/tsconfig": "workspace:*"
+    "@typebot.io/gmail-block": "workspace:*",
+    "zod": "^4.3.5"
   }
 }

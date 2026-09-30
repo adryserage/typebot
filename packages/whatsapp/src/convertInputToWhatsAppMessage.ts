@@ -12,6 +12,8 @@ import type { SystemMessages } from "@typebot.io/settings/schemas";
 import { getOrUploadMedia, type UploadMediaCache } from "./getOrUploadMedia";
 import type { WhatsAppSendingMessage } from "./schemas";
 
+const whatsAppInteractiveBodyMaxLength = 1024;
+
 type Props = {
   input: NonNullable<ContinueChatResponse["input"]>;
   lastMessage: ContinueChatResponse["messages"][number] | undefined;
@@ -96,7 +98,9 @@ export const convertInputToWhatsAppMessages = async ({
           bodyText += item.description;
         }
 
-        let header;
+        let header:
+          | { type: "image"; image: { id: string } | { link: string } }
+          | undefined;
         if (item.pictureSrc) {
           if (mediaCache) {
             const mediaId = await getOrUploadMedia({
@@ -121,7 +125,9 @@ export const convertInputToWhatsAppMessages = async ({
           interactive: {
             type: "button" as const,
             header,
-            body: isEmpty(bodyText) ? undefined : { text: bodyText },
+            body: isEmpty(bodyText)
+              ? undefined
+              : { text: truncateWhatsAppInteractiveBody(bodyText) },
             action: {
               buttons: [
                 {
@@ -169,7 +175,9 @@ export const convertInputToWhatsAppMessages = async ({
         interactive: {
           type: "button",
           body: {
-            text: idx === 0 ? lastMessageText || "―" : "―",
+            text: truncateWhatsAppInteractiveBody(
+              idx === 0 ? lastMessageText || "―" : "―",
+            ),
           },
           action: {
             buttons: (() => {
@@ -201,7 +209,9 @@ export const convertInputToWhatsAppMessages = async ({
           bodyText += item.description;
         }
 
-        let header;
+        let header:
+          | { type: "image"; image: { id: string } | { link: string } }
+          | undefined;
         if (item.imageUrl) {
           if (mediaCache) {
             const mediaId = await getOrUploadMedia({
@@ -226,7 +236,9 @@ export const convertInputToWhatsAppMessages = async ({
           interactive: {
             type: "button" as const,
             header,
-            body: isEmpty(bodyText) ? undefined : { text: bodyText },
+            body: isEmpty(bodyText)
+              ? undefined
+              : { text: truncateWhatsAppInteractiveBody(bodyText) },
             action: {
               buttons: (() => {
                 const paths = (item.paths ?? []).slice(0, 3);
@@ -248,6 +260,13 @@ export const convertInputToWhatsAppMessages = async ({
       return messages;
     }
   }
+};
+
+const truncateWhatsAppInteractiveBody = (text: string) => {
+  const characters = Array.from(text);
+  return characters.length > whatsAppInteractiveBodyMaxLength
+    ? characters.slice(0, whatsAppInteractiveBodyMaxLength).join("")
+    : text;
 };
 
 const trimTextTo20Chars = (

@@ -1,6 +1,6 @@
 import { createActionHandler } from "@typebot.io/forge";
+import { safeKy } from "@typebot.io/lib/ky";
 import { parseUnknownError } from "@typebot.io/lib/parseUnknownError";
-import ky from "ky";
 import { createRecord } from "../actions/createRecord";
 import { defaultBaseUrl } from "../constants";
 import { linkRelationUpdatesIfAny } from "../helpers/linkRelationUpdatesIfAny";
@@ -17,7 +17,7 @@ export const createRecordHandler = createActionHandler(createRecord, {
       if (!apiKey) return logs.add("API key is required");
       if (!tableId) return logs.add("Table ID is required");
 
-      const response = await ky
+      const response = await safeKy
         .post(`${baseUrl ?? defaultBaseUrl}/api/v2/tables/${tableId}/records`, {
           headers: {
             "xc-token": apiKey,

@@ -4,8 +4,13 @@ generator client {
 
 datasource db {
   provider     = "mysql"
-  url          = env("DATABASE_URL")
   relationMode = "prisma"
+}
+
+generator effect {
+  provider         = "bun scripts/effectPrismaGenerator.ts"
+  output           = "../.effect/index.ts"
+  clientImportPath = "@prisma/client"
 }
 
 model Account {
@@ -111,8 +116,22 @@ model Workspace {
   // TODO: remove
   settings                      Json?
   lastActivityAt                DateTime?
-  inactiveFirstEmailSentAt      DateTime?
-  inactiveSecondEmailSentAt     DateTime?
+  spaces                        Space[]
+}
+
+model Space {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  name      String   @db.VarChar(255)
+  icon      String?  @db.VarChar(1000)
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  typebots    Typebot[]
+
+  @@unique([id, workspaceId])
+  @@index([workspaceId])
 }
 
 model MemberInWorkspace {
@@ -176,10 +195,11 @@ model UserCredentials {
 }
 
 model VerificationToken {
-  identifier String
-  token      String   @unique
-  value      String?  @db.Text
-  expires    DateTime
+  identifier     String
+  token          String   @unique
+  value          String?  @db.Text
+  failedAttempts Int      @default(0)
+  expires        DateTime
 
   @@unique([identifier, token])
 }
@@ -231,9 +251,12 @@ model Typebot {
   whatsAppCredentialsId   String?
   riskLevel               Int?
   bannedIps               BannedIp[]
+  space                   Space?                    @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  spaceId                 String?
 
   @@index([workspaceId])
   @@index([folderId])
+  @@index([spaceId])
   @@index([isArchived, createdAt(sort: Desc)])
 }
 
@@ -263,19 +286,22 @@ model CollaboratorsOnTypebots {
 }
 
 model PublicTypebot {
-  id            String                @id @default(cuid())
-  version       String?               @db.VarChar(10)
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @default(now()) @updatedAt
-  typebotId     String                @unique
-  groups        Json
-  events        Json?
-  variables     Json
-  edges         Json
-  theme         Json
-  settings      Json
-  typebot       Typebot               @relation(fields: [typebotId], references: [id], onDelete: Cascade)
-  mediaIdsCache RuntimeMediaIdCache[]
+  id             String                @id @default(cuid())
+  version        String?               @db.VarChar(10)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @default(now())
+  lastActivityAt DateTime?
+  typebotId      String                @unique
+  groups         Json
+  events         Json?
+  variables      Json
+  edges          Json
+  theme          Json
+  settings       Json
+  typebot        Typebot               @relation(fields: [typebotId], references: [id], onDelete: Cascade)
+  mediaIdsCache  RuntimeMediaIdCache[]
+
+  @@index([lastActivityAt])
 }
 
 model RuntimeMediaIdCache {
@@ -446,6 +472,16 @@ model BannedIp {
 
   @@index([responsibleTypebotId])
   @@index([userId])
+}
+
+model SuppressedEmail {
+  id                          String    @id @default(cuid())
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @default(now()) @updatedAt
+  email                       String    @unique @db.VarChar(320)
+  transientGeneralBounceCount Int       @default(0)
+  suppressedAt                DateTime?
+  lastWebhookId               String?   @db.VarChar(255)
 }
 
 enum WorkspaceRole {

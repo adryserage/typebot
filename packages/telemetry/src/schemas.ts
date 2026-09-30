@@ -1,5 +1,5 @@
 import { Plan } from "@typebot.io/prisma/enum";
-import { z } from "@typebot.io/zod";
+import { z } from "zod";
 
 const userEvent = z.object({
   userId: z.string(),
@@ -98,11 +98,17 @@ const subscriptionAutoUpdatedEventSchema = workspaceEvent.merge(
   }),
 );
 
+const billingCycleResetEventSchema = workspaceEvent.merge(
+  z.object({
+    name: z.literal("Billing cycle reset"),
+  }),
+);
+
 const subscriptionScheduledForCancellationEventSchema = workspaceEvent.merge(
   z.object({
     name: z.literal("Subscription scheduled for cancellation"),
     data: z.object({
-      plan: z.enum([Plan.STARTER, Plan.PRO]),
+      plan: z.enum([Plan.STARTER, Plan.PRO, Plan.ENTERPRISE]),
     }),
   }),
 );
@@ -111,7 +117,7 @@ const removedCancellationEventSchema = workspaceEvent.merge(
   z.object({
     name: z.literal("Subscription cancellation removed"),
     data: z.object({
-      plan: z.enum([Plan.STARTER, Plan.PRO]),
+      plan: z.enum([Plan.STARTER, Plan.PRO, Plan.ENTERPRISE]),
     }),
   }),
 );
@@ -150,6 +156,9 @@ const workspaceAutoQuarantinedEventSchema = workspaceEvent.merge(
         reason: z.literal("free limit reached"),
         chatsLimit: z.number(),
         totalChatsUsed: z.number(),
+      }),
+      z.object({
+        reason: z.literal("suspicious billing cycle reset payment failed"),
       }),
     ]),
   }),
@@ -221,6 +230,7 @@ const builderEvents = [
   workspaceLimitReachedEventSchema,
   workspaceAutoQuarantinedEventSchema,
   subscriptionAutoUpdatedEventSchema,
+  billingCycleResetEventSchema,
   workspacePastDueEventSchema,
   workspaceUnpaidEventSchema,
   workspaceNotPastDueEventSchema,

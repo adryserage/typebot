@@ -20,7 +20,7 @@ export const parseStringParam = (
 export const parseNumberOrBoolParam = (
   fieldName: string,
   fieldValue?: number | boolean,
-) => (isDefined(fieldValue) ? `${fieldName}: ${fieldValue},` : ``);
+) => (isDefined(fieldValue) ? `${fieldName}: ${fieldValue},` : "");
 
 export const parseBotProps = ({
   typebot,
@@ -38,12 +38,12 @@ export const parseBotProps = ({
 export const parseReactStringParam = (
   fieldName: string,
   fieldValue?: string,
-) => (fieldValue ? `${fieldName}="${fieldValue}"` : ``);
+) => (fieldValue ? `${fieldName}="${fieldValue}"` : "");
 
 export const parseReactNumberOrBoolParam = (
   fieldName: string,
   fieldValue?: number | boolean,
-) => (isDefined(fieldValue) ? `${fieldName}={${fieldValue}}` : ``);
+) => (isDefined(fieldValue) ? `${fieldName}={${fieldValue}}` : "");
 
 export const parseReactBotProps = ({
   typebot,
@@ -73,7 +73,7 @@ export const parseApiHost = (
   customDomain: Typebot["customDomain"] | undefined,
 ) => {
   if (customDomain) return new URL(`https://${customDomain}`).origin;
-  return env.NEXT_PUBLIC_VIEWER_URL.at(1) ?? env.NEXT_PUBLIC_VIEWER_URL[0];
+  return env.NEXT_PUBLIC_VIEWER_URL?.at(1) ?? env.NEXT_PUBLIC_VIEWER_URL?.[0];
 };
 
 const parseApiHostValue = (

@@ -23,28 +23,28 @@ import {
   onMount,
   Show,
 } from "solid-js";
-import { useBotContainer } from "@/contexts/BotContainerContext";
+import { useBotContainer } from "../../contexts/BotContainerContext";
 import {
   ChatContainerSizeContext,
   createChatContainerProviderValue,
-} from "@/contexts/ChatContainerSizeContext";
-import type { CommandData } from "@/features/commands/types";
-import { continueChatQuery } from "@/queries/continueChatQuery";
-import { saveClientLogsQuery } from "@/queries/saveClientLogsQuery";
+} from "../../contexts/ChatContainerSizeContext";
+import type { CommandData } from "../../features/commands/types";
+import { continueChatQuery } from "../../queries/continueChatQuery";
+import { saveClientLogsQuery } from "../../queries/saveClientLogsQuery";
 import type {
   BotContext,
   ChatChunk as ChatChunkType,
   ClientSideResult,
   InputSubmitContent,
-} from "@/types";
-import { mergeThemes } from "@/utils/dynamicTheme";
-import { isNetworkError } from "@/utils/error";
-import { executeClientSideAction } from "@/utils/executeClientSideActions";
-import { getAnswerContent } from "@/utils/getAnswerContent";
-import { migrateLegacyChatChunks } from "@/utils/migrateLegacyChatChunks";
-import { persist } from "@/utils/persist";
-import { setGeneralBackground } from "@/utils/setCssVariablesValue";
-import { toaster } from "@/utils/toaster";
+} from "../../types";
+import { mergeThemes } from "../../utils/dynamicTheme";
+import { isNetworkError } from "../../utils/error";
+import { executeClientSideAction } from "../../utils/executeClientSideActions";
+import { getAnswerContent } from "../../utils/getAnswerContent";
+import { migrateLegacyChatChunks } from "../../utils/migrateLegacyChatChunks";
+import { persist } from "../../utils/persist";
+import { setGeneralBackground } from "../../utils/setCssVariablesValue";
+import { toaster } from "../../utils/toaster";
 import { ChatChunk } from "./ChatChunk";
 import { LoadingChunk } from "./LoadingChunk";
 
@@ -350,6 +350,7 @@ export const ChatContainer = (props: Props) => {
           wsHost: props.context.wsHost,
           sessionId: props.initialChatReply.sessionId,
           resultId: props.initialChatReply.resultId,
+          previewWebhookRoom: props.context.previewWebhookRoom,
         },
         onMessageStream: streamMessage,
         onStreamError: async (error) => {
@@ -361,6 +362,7 @@ export const ChatContainer = (props: Props) => {
       });
       if ("streamOpenAiChatCompletion" in action || "stream" in action) {
         if (response && "replyToSend" in response && !response.replyToSend) {
+          if (response && "logs" in response) saveLogs(response.logs);
           setIsSending(false);
           continue;
         }

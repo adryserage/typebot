@@ -7,11 +7,11 @@ import type { ButtonItem } from "@typebot.io/blocks-inputs/choice/schema";
 import { convertStrToList } from "@typebot.io/lib/convertStrToList";
 import { isEmpty } from "@typebot.io/lib/utils";
 import { Button } from "@typebot.io/ui/components/Button";
+import { Editable } from "@typebot.io/ui/components/Editable";
 import { Popover } from "@typebot.io/ui/components/Popover";
 import { Settings01Icon } from "@typebot.io/ui/icons/Settings01Icon";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { useState } from "react";
-import { SingleLineEditable } from "@/components/SingleLineEditable";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
 import { useGraph } from "@/features/graph/providers/GraphProvider";
 import { ButtonsItemSettings } from "./ButtonsItemSettings";
@@ -95,29 +95,32 @@ export const ButtonsItemNode = ({ item, indices, isMouseOver }: Props) => {
       <Popover.Trigger
         render={(props) => (
           <div className="flex px-4 py-2 justify-center w-full" {...props}>
-            <SingleLineEditable
+            <Editable.Root
               defaultEdit={
                 isEmpty(item.content) ||
                 item.content === t("blocks.inputs.button.clickToEdit.label")
               }
               value={itemValue}
-              input={{
-                onValueChange: handleEditableChange,
-                onKeyDownCapture: handleKeyPress,
-                onMouseDownCapture: (e) => e.stopPropagation(),
-                onWheelCapture: (e) => e.stopPropagation(),
-              }}
               className="max-w-[180px] w-full"
+              onValueChange={handleEditableChange}
               onValueCommit={handleInputSubmit}
-              preview={{
-                className: cx(
+            >
+              <Editable.Input
+                onKeyDownCapture={handleKeyPress}
+                onMouseDownCapture={(e: React.MouseEvent) =>
+                  e.stopPropagation()
+                }
+                onWheelCapture={(e: React.WheelEvent) => e.stopPropagation()}
+              />
+              <Editable.Preview
+                className={cx(
                   "hover:bg-transparent",
                   item.content !== t("blocks.inputs.button.clickToEdit.label")
                     ? "inherit"
                     : "text-gray-9",
-                ),
-              }}
-            />
+                )}
+              />
+            </Editable.Root>
             {isMouseOver && (
               <div className="flex rounded-md bg-gray-1 absolute -right-1 -top-1 z-10 animate-in fade-in-0">
                 <Button

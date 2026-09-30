@@ -2,8 +2,8 @@ import type { PictureChoiceBlock } from "@typebot.io/blocks-inputs/pictureChoice
 import { guessDeviceIsMobile } from "@typebot.io/lib/guessDeviceIsMobile";
 import { isDefined, isNotEmpty, isSvgSrc } from "@typebot.io/lib/utils";
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
-import { SearchInput } from "@/components/inputs/SearchInput";
-import type { InputSubmitContent } from "@/types";
+import { SearchInput } from "../../../../components/inputs/SearchInput";
+import type { InputSubmitContent } from "../../../../types";
 
 type Props = {
   defaultItems: PictureChoiceBlock["items"];
@@ -81,6 +81,7 @@ export const SinglePictureChoice = (props: Props) => {
         <For each={filteredItems()}>
           {(item, index) => (
             <button
+              type="button"
               on:click={() => handleClick(index())}
               data-itemid={item.id}
               class={

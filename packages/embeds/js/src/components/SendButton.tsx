@@ -1,7 +1,7 @@
 import { isEmpty } from "@typebot.io/lib/utils";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { Match, Switch, splitProps } from "solid-js";
-import { useChatContainerSize } from "@/contexts/ChatContainerSizeContext";
+import { useChatContainerSize } from "../contexts/ChatContainerSizeContext";
 import { Button, type ButtonProps } from "./Button";
 import { SendIcon } from "./icons/SendIcon";
 
@@ -26,16 +26,14 @@ export const SendButton = (props: SendButtonProps) => {
   return (
     <Button
       {...buttonProps}
-      type="submit"
+      type={buttonProps.type ?? "submit"}
       class={cx(buttonProps.class, "flex items-center")}
       aria-label={showIcon ? "Send" : undefined}
     >
       <Switch>
         <Match when={showIcon}>
           <SendIcon
-            class={
-              "send-icon flex w-6 h-6 " + (local.disableIcon ? "hidden" : "")
-            }
+            class={`send-icon flex w-6 h-6 ${local.disableIcon ? "hidden" : ""}`}
           />
         </Match>
         <Match when={!showIcon}>{props.children}</Match>

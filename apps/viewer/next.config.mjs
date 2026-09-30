@@ -1,8 +1,7 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { withSentryConfig } from "@sentry/nextjs";
-import { dirname, join } from "path";
-import "@typebot.io/env/compiled";
 import { configureRuntimeEnv } from "next-runtime-env/build/configure.js";
-import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -27,8 +26,6 @@ const injectViewerUrlIfVercelPreview = (val) => {
 
 injectViewerUrlIfVercelPreview(process.env.NEXT_PUBLIC_VIEWER_URL);
 
-configureRuntimeEnv();
-
 const landingPagePaths = [
   "/",
   "/pricing",
@@ -39,36 +36,16 @@ const landingPagePaths = [
   "/business-continuity",
   "/blog",
   "/blog/:slug*",
+  "/templates",
+  "/templates/:slug*",
 ];
-
-const currentHost = "typebot.io";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   transpilePackages: ["@typebot.io/settings"],
   reactStrictMode: true,
   output: "standalone",
   outputFileTracingRoot: join(__dirname, "../../"),
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      // TODO: Remove once https://github.com/getsentry/sentry-javascript/issues/8105 is merged and sentry is upgraded
-      config.ignoreWarnings = [
-        ...(config.ignoreWarnings ?? []),
-        {
-          module:
-            /@opentelemetry\/instrumentation\/build\/esm\/platform\/node\/instrumentation\.js/,
-          message:
-            /Critical dependency: the request of a dependency is an expression/,
-        },
-      ];
-      return config;
-    }
-
-    return config;
-  },
   async redirects() {
     return [
       {
@@ -76,104 +53,83 @@ const nextConfig = {
         destination: "https://discord.gg/xjyQczWAXV",
         permanent: true,
       },
+      ...landingPagePaths.map((path) => ({
+        source: path,
+        has: [{ type: "host", value: "typebot.io" }],
+        destination: `https://typebot.com${path}`,
+        permanent: true,
+      })),
     ];
   },
   async rewrites() {
     return {
-      beforeFiles: (process.env.LANDING_PAGE_URL
-        ? [
-            {
-              source: "/assets/:asset*",
-              destination: `${process.env.LANDING_PAGE_URL}/assets/:asset*`,
-            },
-            {
-              source: "/blog-assets/:asset*",
-              destination: `${process.env.LANDING_PAGE_URL}/blog-assets/:asset*`,
-            },
-            {
-              source: "/_serverFn/:server*",
-              destination: `${process.env.LANDING_PAGE_URL}/_serverFn/:server*`,
-            },
-            {
-              source: "/fonts/:font*",
-              destination: `${process.env.LANDING_PAGE_URL}/fonts/:font*`,
-            },
-            {
-              source: "/images/:image*",
-              destination: `${process.env.LANDING_PAGE_URL}/images/:image*`,
-            },
-            {
-              source: "/sitemap.xml",
-              destination: `${process.env.LANDING_PAGE_URL}/sitemap.xml`,
-            },
-          ].concat(
-            landingPagePaths.map((path) => ({
-              source: path,
-              has: [
-                {
-                  type: "host",
-                  value: currentHost,
-                },
-              ],
-              destination: `${process.env.LANDING_PAGE_URL}${path}`,
-            })),
-          )
-        : []
-      )
-        .concat([
-          {
-            source:
-              "/api/typebots/:typebotId/blocks/:blockId/storage/upload-url",
-            destination:
-              "/api/v1/typebots/:typebotId/blocks/:blockId/storage/upload-url",
-          },
-        ])
-        .concat(
-          process.env.NEXTAUTH_URL
-            ? [
-                {
-                  source:
-                    "/api/typebots/:typebotId/blocks/:blockId/steps/:stepId/sampleResult",
-                  destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/getResultExample`,
-                },
-                {
-                  source:
-                    "/api/typebots/:typebotId/blocks/:blockId/sampleResult",
-                  destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/getResultExample`,
-                },
-                {
-                  source:
-                    "/api/typebots/:typebotId/blocks/:blockId/steps/:stepId/unsubscribeWebhook",
-                  destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/unsubscribe`,
-                },
-                {
-                  source:
-                    "/api/typebots/:typebotId/blocks/:blockId/unsubscribeWebhook",
-                  destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/unsubscribe`,
-                },
-                {
-                  source:
-                    "/api/typebots/:typebotId/blocks/:blockId/steps/:stepId/subscribeWebhook",
-                  destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/subscribe`,
-                },
-                {
-                  source:
-                    "/api/typebots/:typebotId/blocks/:blockId/subscribeWebhook",
-                  destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/subscribe`,
-                },
-              ]
-            : [],
-        ),
+      beforeFiles: [
+        {
+          source: "/api/typebots/:typebotId/blocks/:blockId/storage/upload-url",
+          destination:
+            "/api/v1/typebots/:typebotId/blocks/:blockId/storage/upload-url",
+        },
+        {
+          source: "/healthz",
+          destination: "/api/healthz",
+        },
+      ].concat(
+        process.env.NEXTAUTH_URL
+          ? [
+              {
+                source:
+                  "/api/typebots/:typebotId/blocks/:blockId/steps/:stepId/sampleResult",
+                destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/getResultExample`,
+              },
+              {
+                source: "/api/typebots/:typebotId/blocks/:blockId/sampleResult",
+                destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/getResultExample`,
+              },
+              {
+                source:
+                  "/api/typebots/:typebotId/blocks/:blockId/steps/:stepId/unsubscribeWebhook",
+                destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/unsubscribe`,
+              },
+              {
+                source:
+                  "/api/typebots/:typebotId/blocks/:blockId/unsubscribeWebhook",
+                destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/unsubscribe`,
+              },
+              {
+                source:
+                  "/api/typebots/:typebotId/blocks/:blockId/steps/:stepId/subscribeWebhook",
+                destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/subscribe`,
+              },
+              {
+                source:
+                  "/api/typebots/:typebotId/blocks/:blockId/subscribeWebhook",
+                destination: `${process.env.NEXTAUTH_URL}/api/v1/typebots/:typebotId/webhookBlocks/:blockId/subscribe`,
+              },
+            ]
+          : [],
+      ),
     };
   },
 };
 
-export default process.env.SENTRY_DSN && process.env.SENTRY_AUTH_TOKEN
-  ? withSentryConfig(nextConfig, {
-      telemetry: false,
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      widenClientFileUpload: true,
-    })
-  : nextConfig;
+export default async function config() {
+  // Avoid loading env package when NX is creating the graph (nx-ignore command)
+  if (global.NX_GRAPH_CREATION) return nextConfig;
+
+  const { env } = await import("@typebot.io/env/compiled");
+  // Publish only the builder origin, derived from the existing server config.
+  if (env.NEXTAUTH_URL)
+    process.env.NEXT_PUBLIC_BUILDER_ORIGIN = new URL(env.NEXTAUTH_URL).origin;
+  configureRuntimeEnv();
+
+  return process.env.SENTRY_DSN
+    ? withSentryConfig(nextConfig, {
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        widenClientFileUpload: true,
+        // Only print logs for uploading source maps in CI
+        silent: !process.env.CI,
+      })
+    : nextConfig;
+}

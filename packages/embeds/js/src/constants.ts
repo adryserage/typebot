@@ -3,8 +3,11 @@ import type { BubbleProps } from "./features/bubble/components/Bubble";
 import type { PopupProps } from "./features/popup/components/Popup";
 
 export const defaultBotProps: BotProps = {
-  id: undefined,
   typebot: undefined,
+  initialChatReply: undefined,
+  templateSlug: undefined,
+  previewSettings: undefined,
+  previewTheme: undefined,
   onNewInputBlock: undefined,
   onAnswer: undefined,
   onEnd: undefined,

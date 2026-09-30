@@ -3,16 +3,23 @@ import { LogicalOperator } from "@typebot.io/conditions/constants";
 import type { Comparison } from "@typebot.io/conditions/schemas";
 import { isDefined } from "@typebot.io/lib/utils";
 import { defaultSessionExpiryTimeout } from "@typebot.io/settings/constants";
+import {
+  type WhatsAppWebhookForwardingEventType,
+  whatsAppWebhookForwardingUrlSchema,
+} from "@typebot.io/settings/schemas";
 import { Accordion } from "@typebot.io/ui/components/Accordion";
 import { Alert } from "@typebot.io/ui/components/Alert";
 import { Button } from "@typebot.io/ui/components/Button";
+import { Checkbox } from "@typebot.io/ui/components/Checkbox";
+import { DebouncedTextInput } from "@typebot.io/ui/components/DebouncedTextInput";
 import { Dialog } from "@typebot.io/ui/components/Dialog";
 import { Field } from "@typebot.io/ui/components/Field";
 import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
+import { Select } from "@typebot.io/ui/components/Select";
 import { Switch } from "@typebot.io/ui/components/Switch";
 import { useOpenControls } from "@typebot.io/ui/hooks/useOpenControls";
 import { InformationSquareIcon } from "@typebot.io/ui/icons/InformationSquareIcon";
-import type { JSX } from "react";
+import { type JSX, useState } from "react";
 import { BasicNumberInput } from "@/components/inputs/BasicNumberInput";
 import { BasicSelect } from "@/components/inputs/BasicSelect";
 import { TableList } from "@/components/TableList";
@@ -23,11 +30,28 @@ import { hasProPerks } from "@/features/billing/helpers/hasProPerks";
 import { CredentialsDropdown } from "@/features/credentials/components/CredentialsDropdown";
 import { useTypebot } from "@/features/editor/providers/TypebotProvider";
 import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
-import { trpc } from "@/lib/queryClient";
+import { orpc } from "@/lib/queryClient";
 import { PublishButton } from "../../../PublishButton";
 import type { DialogProps } from "../../DeployButton";
 import { WhatsAppComparisonItem } from "./WhatsAppComparisonItem";
 import { WhatsAppCredentialsDialog } from "./WhatsAppCredentialsDialog";
+
+const webhookForwardingEventTypeItems = [
+  { label: "All events", value: "all" },
+  { label: "Error statuses", value: "errorStatuses" },
+  { label: "Marketing statuses", value: "marketingStatuses" },
+] satisfies {
+  label: string;
+  value: WhatsAppWebhookForwardingEventType;
+}[];
+
+const defaultWebhookForwardingEventTypes = [
+  "errorStatuses",
+  "marketingStatuses",
+] satisfies WhatsAppWebhookForwardingEventType[];
+const allWebhookForwardingEventTypes = [
+  "all",
+] satisfies WhatsAppWebhookForwardingEventType[];
 
 export const WhatsAppDeployDialog = ({
   isOpen,
@@ -45,18 +69,19 @@ export const WhatsAppDeployDialog = ({
     onOpen: onChangePlanDialogOpen,
     onClose: onChangePlanDialogClose,
   } = useOpenControls();
+  const [isWebhookForwardingUrlInvalid, setIsWebhookForwardingUrlInvalid] =
+    useState(false);
 
   const whatsAppSettings = typebot?.settings.whatsApp;
+  const whatsAppCredentialsId = typebot?.whatsAppCredentialsId;
 
   const { data: phoneNumberData } = useQuery(
-    trpc.whatsAppInternal.getPhoneNumber.queryOptions(
-      {
-        credentialsId: typebot?.whatsAppCredentialsId as string,
+    orpc.whatsApp.getPhoneNumber.queryOptions({
+      input: {
+        credentialsId: whatsAppCredentialsId ?? "",
       },
-      {
-        enabled: !!typebot?.whatsAppCredentialsId,
-      },
-    ),
+      enabled: isDefined(whatsAppCredentialsId),
+    }),
   );
 
   const toggleEnableWhatsApp = (isChecked: boolean) => {
@@ -76,10 +101,26 @@ export const WhatsAppDeployDialog = ({
 
   const updateCredentialsId = (credentialsId: string | undefined) => {
     if (!typebot) return;
+    if (credentialsId) {
+      updateTypebot({
+        updates: {
+          whatsAppCredentialsId: credentialsId,
+        },
+      });
+      return;
+    }
     updateTypebot({
       updates: {
-        whatsAppCredentialsId: credentialsId,
+        whatsAppCredentialsId: null,
+        settings: {
+          ...typebot.settings,
+          whatsApp: {
+            ...typebot.settings.whatsApp,
+            isEnabled: false,
+          },
+        },
       },
+      save: true,
     });
   };
 
@@ -164,6 +205,122 @@ export const WhatsAppDeployDialog = ({
     });
   };
 
+  const updateWebhookForwardingUrl = (webhookForwardingUrl: string) => {
+    if (!typebot) return;
+
+    const trimmedWebhookForwardingUrl = webhookForwardingUrl.trim();
+    if (trimmedWebhookForwardingUrl === "") {
+      setIsWebhookForwardingUrlInvalid(false);
+      updateTypebot({
+        updates: {
+          settings: {
+            ...typebot.settings,
+            whatsApp: {
+              ...typebot.settings.whatsApp,
+              errorAndMarketingStatusWebhookForwardUrl: undefined,
+            },
+          },
+        },
+      });
+      return;
+    }
+
+    if (
+      !whatsAppWebhookForwardingUrlSchema.safeParse(trimmedWebhookForwardingUrl)
+        .success
+    ) {
+      setIsWebhookForwardingUrlInvalid(true);
+      return;
+    }
+
+    setIsWebhookForwardingUrlInvalid(false);
+    updateTypebot({
+      updates: {
+        settings: {
+          ...typebot.settings,
+          whatsApp: {
+            ...typebot.settings.whatsApp,
+            errorAndMarketingStatusWebhookForwardUrl:
+              trimmedWebhookForwardingUrl,
+            webhookForwardingEventTypes:
+              typebot.settings.whatsApp?.webhookForwardingEventTypes ??
+              defaultWebhookForwardingEventTypes,
+          },
+        },
+      },
+    });
+  };
+
+  const updateIsWebhookForwardingEnabled = (
+    isWebhookForwardingEnabled: boolean,
+  ) => {
+    if (!typebot) return;
+    updateTypebot({
+      updates: {
+        settings: {
+          ...typebot.settings,
+          whatsApp: {
+            ...typebot.settings.whatsApp,
+            isWebhookForwardingEnabled,
+            webhookForwardingEventTypes: isWebhookForwardingEnabled
+              ? (typebot.settings.whatsApp?.webhookForwardingEventTypes ??
+                defaultWebhookForwardingEventTypes)
+              : undefined,
+          },
+        },
+      },
+    });
+  };
+
+  const updateWebhookForwardingEventTypes = (
+    newWebhookForwardingEventTypes: WhatsAppWebhookForwardingEventType[],
+  ) => {
+    if (!typebot) return;
+
+    const isAllEventTypesCurrentlySelected =
+      typebot.settings.whatsApp?.webhookForwardingEventTypes?.includes("all") ??
+      false;
+    const webhookForwardingEventTypes = newWebhookForwardingEventTypes.includes(
+      "all",
+    )
+      ? isAllEventTypesCurrentlySelected &&
+        newWebhookForwardingEventTypes.length > 1
+        ? newWebhookForwardingEventTypes.filter(
+            (eventType) => eventType !== "all",
+          )
+        : allWebhookForwardingEventTypes
+      : newWebhookForwardingEventTypes;
+    updateTypebot({
+      updates: {
+        settings: {
+          ...typebot.settings,
+          whatsApp: {
+            ...typebot.settings.whatsApp,
+            webhookForwardingEventTypes,
+          },
+        },
+      },
+    });
+  };
+
+  const webhookForwardingUrl =
+    whatsAppSettings?.errorAndMarketingStatusWebhookForwardUrl;
+  const isWebhookForwardingEnabled =
+    whatsAppSettings?.isWebhookForwardingEnabled === true;
+  const selectedWebhookForwardingEventTypes =
+    whatsAppSettings?.webhookForwardingEventTypes ??
+    defaultWebhookForwardingEventTypes;
+  const selectedWebhookForwardingEventTypesLabel =
+    selectedWebhookForwardingEventTypes
+      .map(
+        (eventType) =>
+          webhookForwardingEventTypeItems.find(
+            ({ value }) => value === eventType,
+          )?.label,
+      )
+      .filter(isDefined)
+      .join(", ") || "No events selected";
+
   return (
     <Dialog.Root isOpen={isOpen} onClose={onClose}>
       <Dialog.Popup className="max-w-xl">
@@ -210,9 +367,7 @@ export const WhatsAppDeployDialog = ({
                   <CredentialsDropdown
                     type="whatsApp"
                     scope={{ type: "workspace", workspaceId: workspace.id }}
-                    currentCredentialsId={
-                      typebot?.whatsAppCredentialsId ?? undefined
-                    }
+                    currentCredentialsId={whatsAppCredentialsId ?? undefined}
                     onCredentialsSelect={updateCredentialsId}
                     onCreateNewClick={onOpen}
                     credentialsName="WA phone number"
@@ -222,7 +377,7 @@ export const WhatsAppDeployDialog = ({
               )}
             </div>
           </li>
-          {typebot?.whatsAppCredentialsId && phoneNumberData && (
+          {whatsAppCredentialsId && phoneNumberData && (
             <>
               <li>
                 <Accordion.Root>
@@ -270,6 +425,7 @@ export const WhatsAppDeployDialog = ({
                             ComponentBetweenItems={() => (
                               <div className="flex justify-center">
                                 <BasicSelect
+                                  className="w-full"
                                   value={
                                     whatsAppSettings?.startCondition
                                       ?.logicalOperator
@@ -283,6 +439,80 @@ export const WhatsAppDeployDialog = ({
                           >
                             {(props) => <WhatsAppComparisonItem {...props} />}
                           </TableList>
+                        )}
+                      </Field.Container>
+                      <Field.Container>
+                        <Field.Root className="flex-row items-center">
+                          <Switch
+                            checked={isWebhookForwardingEnabled}
+                            onCheckedChange={updateIsWebhookForwardingEnabled}
+                          />
+                          <Field.Label>Forward webhooks</Field.Label>
+                        </Field.Root>
+                        {isWebhookForwardingEnabled && (
+                          <>
+                            <Field.Root>
+                              <Field.Label>Forwarded events</Field.Label>
+                              <Select.Root
+                                multiple
+                                value={selectedWebhookForwardingEventTypes}
+                                items={webhookForwardingEventTypeItems}
+                                onValueChange={
+                                  updateWebhookForwardingEventTypes
+                                }
+                              >
+                                <Select.Trigger>
+                                  <Select.Value>
+                                    {selectedWebhookForwardingEventTypesLabel}
+                                  </Select.Value>
+                                </Select.Trigger>
+                                <Select.Content className="min-w-48">
+                                  <Select.Group>
+                                    {webhookForwardingEventTypeItems.map(
+                                      (item) => (
+                                        <Select.Item
+                                          key={item.value}
+                                          className="pr-2 [&>span:first-child]:items-center [&>span:last-child]:hidden"
+                                          value={item.value}
+                                        >
+                                          <Checkbox
+                                            checked={selectedWebhookForwardingEventTypes.includes(
+                                              item.value,
+                                            )}
+                                            className="pointer-events-none [&_[data-slot=checkbox-indicator]_*]:!text-gray-1 [&_[data-slot=checkbox-indicator]]:!text-gray-1"
+                                            tabIndex={-1}
+                                            aria-hidden
+                                          />
+                                          {item.label}
+                                        </Select.Item>
+                                      ),
+                                    )}
+                                  </Select.Group>
+                                </Select.Content>
+                              </Select.Root>
+                            </Field.Root>
+                            <Field.Root>
+                              <Field.Label>
+                                URL
+                                <MoreInfoTooltip>
+                                  The selected WhatsApp webhook events will be
+                                  forwarded to this URL.
+                                </MoreInfoTooltip>
+                              </Field.Label>
+                              <DebouncedTextInput
+                                type="url"
+                                inputMode="url"
+                                defaultValue={webhookForwardingUrl}
+                                placeholder="https://example.com/whatsapp-webhook"
+                                onValueChange={updateWebhookForwardingUrl}
+                              />
+                              <Field.Error
+                                match={isWebhookForwardingUrlInvalid}
+                              >
+                                Enter a valid HTTP(S) URL.
+                              </Field.Error>
+                            </Field.Root>
+                          </>
                         )}
                       </Field.Container>
                     </Accordion.Panel>

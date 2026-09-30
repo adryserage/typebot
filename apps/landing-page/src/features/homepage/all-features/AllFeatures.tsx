@@ -115,7 +115,7 @@ export const AllFeatures = () => {
           {cards.map((feature, index) => (
             <li
               className="min-w-[calc(100%-.75rem)] snap-start md:sticky top-[calc(var(--padding-top)+var(--header-height)+var(--gap-header-and-card))]"
-              key={index}
+              key={feature.title}
               style={
                 {
                   "--rotate-angle": `${feature.rotateCoeff}deg`,
@@ -165,7 +165,9 @@ const FeatureCard = ({
       style={style}
     >
       <div
-        className={`size-16 flex items-center justify-center rounded-2xl bg-cover`}
+        className={
+          "size-16 flex items-center justify-center rounded-2xl bg-cover"
+        }
         style={{
           backgroundImage: `url('${bgImageSrcs[index]}')`,
         }}
@@ -186,12 +188,13 @@ const Dots = () => (
     style={{
       animation: "fade-in ease-out forwards, fade-out ease-out forwards",
       animationTimeline: "--cards-container",
-      animationRange: `exit-crossing 0% exit-crossing 10%, exit-crossing 80% exit-crossing 90%`,
+      animationRange:
+        "exit-crossing 0% exit-crossing 10%, exit-crossing 80% exit-crossing 90%",
     }}
   >
-    {cards.map((_, index) => (
+    {cards.map((card, index) => (
       <div
-        key={index}
+        key={card.title}
         className="size-2 rounded-full bg-muted"
         style={{
           animation: "fill-carousel-dot ease-out forwards",

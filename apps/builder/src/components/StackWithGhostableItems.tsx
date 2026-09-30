@@ -94,7 +94,7 @@ export const StacksWithGhostableItems = forwardRef<
     <div className={cn("flex flex-col gap-0", className)} ref={ref}>
       {childrenGroups.map((group, index) => (
         <StackWithGhostableItems
-          key={`${group.isNullGroup}-${index}`}
+          key={`${group.isNullGroup}-${index.toString()}`}
           gapPixel={gapPixel}
           groups={childrenGroups}
           index={index}
@@ -132,11 +132,12 @@ const StackWithGhostableItems = ({
       ghostItemHeight={gapPixel / childrenLength}
       closeExpanded={onAbort}
     >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: This hover surface only expands placeholder spacing; the interactive controls are the ghost buttons inside. */}
       <div
         style={
           {
-            "--gap": (isNullGroup ? (isExpanded ? 1 : 0) : gapPixel) + "px",
-            "--mb": gapPixel + "px",
+            "--gap": `${isNullGroup ? (isExpanded ? 1 : 0) : gapPixel}px`,
+            "--mb": `${gapPixel}px`,
           } as React.CSSProperties
         }
         className={cx(
@@ -182,7 +183,7 @@ export const GhostableItem = ({
             {
               "--available-height": isExpanded
                 ? "24px"
-                : ghostItemHeight + "px",
+                : `${ghostItemHeight}px`,
             } as React.CSSProperties
           }
           className={cn(

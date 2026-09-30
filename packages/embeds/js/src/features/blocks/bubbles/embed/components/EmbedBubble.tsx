@@ -3,8 +3,9 @@ import type { EmbedBubbleBlock } from "@typebot.io/blocks-bubbles/embed/schema";
 import { isNotEmpty } from "@typebot.io/lib/utils";
 import { cx } from "@typebot.io/ui/lib/cva";
 import { createSignal, onCleanup, onMount } from "solid-js";
-import { TypingBubble } from "@/components/TypingBubble";
-import type { InputSubmitContent } from "@/types";
+import { TypingBubble } from "../../../../../components/TypingBubble";
+import { sanitizeUrl } from "../../../../../lib/sanitizeUrl";
+import type { InputSubmitContent } from "../../../../../types";
 
 type Props = {
   content: EmbedBubbleBlock["content"];
@@ -18,9 +19,7 @@ export const showAnimationDuration = 400;
 
 export const EmbedBubble = (props: Props) => {
   let ref: HTMLDivElement | undefined;
-  const [isTyping, setIsTyping] = createSignal(
-    props.onTransitionEnd ? true : false,
-  );
+  const [isTyping, setIsTyping] = createSignal(!!props.onTransitionEnd);
 
   const handleMessage = (
     event: MessageEvent<{ name?: string; data?: string }>,
@@ -92,8 +91,8 @@ export const EmbedBubble = (props: Props) => {
             }}
           >
             <iframe
-              id="embed-bubble-content"
-              src={props.content?.url}
+              title="Embedded content"
+              src={sanitizeUrl(props.content?.url ?? "", "about:blank")}
               class="w-full h-full"
             />
           </div>

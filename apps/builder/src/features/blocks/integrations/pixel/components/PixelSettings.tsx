@@ -5,15 +5,13 @@ import {
 } from "@typebot.io/blocks-integrations/pixel/constants";
 import type { PixelBlock } from "@typebot.io/blocks-integrations/pixel/schema";
 import { isDefined, isEmpty } from "@typebot.io/lib/utils";
+import { DebouncedTextInput } from "@typebot.io/ui/components/DebouncedTextInput";
 import { Field } from "@typebot.io/ui/components/Field";
 import { MoreInfoTooltip } from "@typebot.io/ui/components/MoreInfoTooltip";
 import { Switch } from "@typebot.io/ui/components/Switch";
 import { BasicSelect } from "@/components/inputs/BasicSelect";
 import { CodeEditor } from "@/components/inputs/CodeEditor";
-import {
-  DebouncedTextInput,
-  DebouncedTextInputWithVariablesButton,
-} from "@/components/inputs/DebouncedTextInput";
+import { DebouncedTextInputWithVariablesButton } from "@/components/inputs/DebouncedTextInput";
 import { TableList } from "@/components/TableList";
 import { TextLink } from "@/components/TextLink";
 
@@ -28,21 +26,29 @@ type Props = {
 type Item = NonNullable<NonNullable<PixelBlock["options"]>["params"]>[number];
 
 export const PixelSettings = ({ options, onOptionsChange }: Props) => {
+  const emptyOptions = {
+    eventType: undefined,
+    pixelId: undefined,
+    isInitSkip: undefined,
+    params: undefined,
+  } satisfies PixelBlock["options"];
+  const baseOptions = options ?? emptyOptions;
+
   const updateIsInitSkipped = (isChecked: boolean) =>
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       isInitSkip: isChecked,
     });
 
   const updatePixelId = (pixelId: string) =>
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       pixelId: isEmpty(pixelId) ? undefined : pixelId,
     });
 
   const updateIsTrackingEventEnabled = (isChecked: boolean) =>
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       params: isChecked && !options?.params ? [] : undefined,
     });
 
@@ -50,21 +56,21 @@ export const PixelSettings = ({ options, onOptionsChange }: Props) => {
     eventType: (typeof pixelEventTypes)[number] | "Custom" | undefined,
   ) =>
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       params: [],
       eventType,
     });
 
   const updateParams = (params: NonNullable<PixelBlock["options"]>["params"]) =>
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       params,
     });
 
   const updateEventName = (name: string) => {
-    if (options?.eventType !== "Custom") return;
+    if (baseOptions.eventType !== "Custom") return;
     onOptionsChange({
-      ...options,
+      ...baseOptions,
       name: isEmpty(name) ? undefined : name,
     });
   };
@@ -107,6 +113,7 @@ export const PixelSettings = ({ options, onOptionsChange }: Props) => {
               to better understand the available options.
             </p>
             <BasicSelect
+              className="w-full"
               items={["Custom", ...pixelEventTypes]}
               value={options?.eventType}
               placeholder="Select event type"
@@ -183,6 +190,7 @@ const ParamItem = ({ item, eventType, onItemChange }: ParamItemProps) => {
         />
       ) : (
         <BasicSelect
+          className="w-full"
           value={item.key}
           items={possibleObjectProps.map((prop) => prop.key)}
           onChange={updateKey}
@@ -191,7 +199,7 @@ const ParamItem = ({ item, eventType, onItemChange }: ParamItemProps) => {
       )}
       {currentObject?.type === "code" ? (
         <CodeEditor
-          lang={"javascript"}
+          lang={"js"}
           defaultValue={item.value}
           onChange={updateValue}
         />

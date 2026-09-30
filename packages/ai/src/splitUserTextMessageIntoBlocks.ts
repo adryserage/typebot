@@ -1,5 +1,6 @@
+import { safeKy } from "@typebot.io/lib/ky";
 import type { ImagePart, TextPart, UserContent } from "ai";
-import ky, { HTTPError } from "ky";
+import { HTTPError } from "ky";
 
 type Props = {
   input: string;
@@ -17,7 +18,7 @@ export const splitUserTextMessageIntoBlocks = async ({
       for (const url of urls) {
         const cleanUrl = url.trim();
         try {
-          const response = await ky.get(cleanUrl);
+          const response = await safeKy.get(cleanUrl);
           if (
             !response.ok ||
             !response.headers.get("content-type")?.startsWith("image/")
@@ -43,7 +44,7 @@ export const splitUserTextMessageIntoBlocks = async ({
       if (parts.at(-1)?.type === "text") {
         const lastText = parts.at(-1) as TextPart;
         parts = parts.slice(0, -1);
-        parts.push({ type: "text", text: lastText.text + "\n\n" + part });
+        parts.push({ type: "text", text: `${lastText.text}\n\n${part}` });
       } else {
         parts.push({ type: "text", text: part });
       }

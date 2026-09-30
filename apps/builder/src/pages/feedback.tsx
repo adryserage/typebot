@@ -1,9 +1,9 @@
+import { auth } from "@typebot.io/auth/lib/nextAuth";
 import { env } from "@typebot.io/env";
 import { isNotDefined } from "@typebot.io/lib/utils";
 import type { Prisma } from "@typebot.io/prisma/types";
 import { sign } from "jsonwebtoken";
 import type { GetServerSidePropsContext } from "next";
-import { auth } from "@/features/auth/lib/nextAuth";
 
 export default function Page() {
   return null;
@@ -15,7 +15,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return {
       redirect: {
         permanent: false,
-        destination: `/signin?redirectPath=%2Ffeedback`,
+        destination: "/signin?redirectPath=%2Ffeedback",
       },
     };
   const sleekplanToken = createSSOToken(session?.user as Prisma.User);

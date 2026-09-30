@@ -1,19 +1,19 @@
 import type { ContinueChatResponse } from "@typebot.io/chat-api/schemas";
 import type { LogInSession } from "@typebot.io/logs/schemas";
-import { executeChatwoot } from "@/features/blocks/integrations/chatwoot/utils/executeChatwoot";
-import { executeGoogleAnalyticsBlock } from "@/features/blocks/integrations/googleAnalytics/utils/executeGoogleAnalytics";
-import { executeHttpRequest } from "@/features/blocks/integrations/httpRequest/executeHttpRequest";
-import { streamChat } from "@/features/blocks/integrations/openai/streamChat";
-import { executePixel } from "@/features/blocks/integrations/pixel/executePixel";
-import { executeRedirect } from "@/features/blocks/logic/redirect/utils/executeRedirect";
+import { executeChatwoot } from "../features/blocks/integrations/chatwoot/utils/executeChatwoot";
+import { executeGoogleAnalyticsBlock } from "../features/blocks/integrations/googleAnalytics/utils/executeGoogleAnalytics";
+import { executeHttpRequest } from "../features/blocks/integrations/httpRequest/executeHttpRequest";
+import { streamChat } from "../features/blocks/integrations/openai/streamChat";
+import { executePixel } from "../features/blocks/integrations/pixel/executePixel";
+import { executeRedirect } from "../features/blocks/logic/redirect/utils/executeRedirect";
 import {
   executeCode,
   executeScript,
-} from "@/features/blocks/logic/script/executeScript";
-import { executeSetVariable } from "@/features/blocks/logic/setVariable/executeSetVariable";
-import { executeWait } from "@/features/blocks/logic/wait/utils/executeWait";
-import { listenForWebhook } from "@/features/blocks/logic/webhook/listenForWebhook";
-import type { ClientSideActionContext } from "@/types";
+} from "../features/blocks/logic/script/executeScript";
+import { executeSetVariable } from "../features/blocks/logic/setVariable/executeSetVariable";
+import { executeWait } from "../features/blocks/logic/wait/utils/executeWait";
+import { listenForWebhook } from "../features/blocks/logic/webhook/listenForWebhook";
+import type { ClientSideActionContext } from "../types";
 import { injectStartProps } from "./injectStartProps";
 
 type ClientSideActionResponse =
@@ -21,7 +21,7 @@ type ClientSideActionResponse =
   | { replyToSend: string | undefined; logs?: LogInSession[] }
   | { logs: LogInSession[] }
   | { scriptCallbackMessage: string }
-  | void;
+  | undefined;
 
 type Props = {
   clientSideAction: NonNullable<ContinueChatResponse["clientSideActions"]>[0];
@@ -42,7 +42,8 @@ export const executeClientSideAction = async ({
     });
   }
   if ("googleAnalytics" in clientSideAction) {
-    return executeGoogleAnalyticsBlock(clientSideAction.googleAnalytics);
+    await executeGoogleAnalyticsBlock(clientSideAction.googleAnalytics);
+    return;
   }
   if ("scriptToExecute" in clientSideAction) {
     return executeScript(clientSideAction.scriptToExecute, {
@@ -50,7 +51,9 @@ export const executeClientSideAction = async ({
     });
   }
   if ("redirect" in clientSideAction) {
-    return executeRedirect(clientSideAction.redirect);
+    return executeRedirect(clientSideAction.redirect, {
+      isPreview: context.isPreview,
+    });
   }
   if ("wait" in clientSideAction) {
     await executeWait(clientSideAction.wait);
@@ -96,18 +99,20 @@ export const executeClientSideAction = async ({
     return { replyToSend: response };
   }
   if ("startPropsToInject" in clientSideAction) {
-    return injectStartProps(clientSideAction.startPropsToInject);
+    await injectStartProps(clientSideAction.startPropsToInject);
+    return;
   }
   if ("pixel" in clientSideAction) {
-    return executePixel(clientSideAction.pixel);
+    await executePixel(clientSideAction.pixel);
+    return;
   }
   if ("codeToExecute" in clientSideAction) {
     return executeCode(clientSideAction.codeToExecute);
   }
   if (clientSideAction.type === "listenForWebhook") {
     return listenForWebhook({
-      sessionId: context.sessionId,
-      resultId: context.resultId,
+      room: clientSideAction.room,
+      token: clientSideAction.token,
       context,
     });
   }

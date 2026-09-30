@@ -1,3 +1,4 @@
+import { uploadFileWithPresignedPostData } from "@typebot.io/lib/s3/uploadFileWithPresignedPostData";
 import { sendRequest } from "@typebot.io/lib/utils";
 
 type UploadFileProps = {
@@ -29,13 +30,14 @@ export const uploadFiles = async ({
   const errors: string[] = [];
   let i = 0;
   for (const { input, file } of files) {
-    onUploadProgress &&
-      onUploadProgress({ progress: (i / files.length) * 100, fileIndex: i });
+    onUploadProgress?.({ progress: (i / files.length) * 100, fileIndex: i });
     i += 1;
     const { data, error } = await sendRequest<{
       presignedUrl: string;
-      formData: Record<string, string>;
+      formData?: Record<string, string>;
       fileUrl: string;
+      fileType?: string;
+      maxFileSize?: number;
     }>({
       method: "POST",
       url: `${apiHost}/api/v3/generate-upload-url`,
@@ -43,6 +45,7 @@ export const uploadFiles = async ({
         fileName: input.fileName,
         sessionId: input.sessionId,
         fileType: file.type,
+        fileSize: file.size,
         blockId: input.blockId,
       },
     });
@@ -53,23 +56,39 @@ export const uploadFiles = async ({
     }
 
     if (!data?.presignedUrl) continue;
-    else {
-      const formData = new FormData();
-      Object.entries(data.formData).forEach(([key, value]) => {
-        formData.append(key, value);
-      });
-      formData.append("file", file);
-      const upload = await fetch(data.presignedUrl, {
-        method: "POST",
-        body: formData,
-      });
 
-      if (!upload.ok) continue;
+    const upload = await uploadFileWithPresignedPostData({
+      presignedUrl: data.presignedUrl,
+      formData: data.formData,
+      file,
+    }).catch((error) => {
+      errors.push(parseUploadError(error));
+      return;
+    });
 
-      urls.push({ url: data.fileUrl, type: file.type });
+    if (!upload) continue;
+
+    if (!upload.ok) {
+      errors.push(await parseUploadResponseError(upload));
+      continue;
     }
+
+    urls.push({ url: data.fileUrl, type: file.type });
   }
   return errors.length > 0
     ? { type: "error", error: errors.join(", ") }
     : { type: "success", urls };
 };
+
+const parseUploadResponseError = async (response: Response) => {
+  const body = await response.text().catch(() => undefined);
+
+  return (
+    body ||
+    response.statusText ||
+    `Upload failed with status ${response.status}`
+  );
+};
+
+const parseUploadError = (error: unknown) =>
+  error instanceof Error ? error.message : "Could not upload file";

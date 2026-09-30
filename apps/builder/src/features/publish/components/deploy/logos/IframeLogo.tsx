@@ -1,7 +1,6 @@
 export const IframeLogo = (props: React.SVGProps<SVGSVGElement>) => {
   return (
     <svg
-      id="Capa_1"
       enableBackground="new 0 0 512 512"
       height="512"
       viewBox="0 0 512 512"
@@ -9,6 +8,7 @@ export const IframeLogo = (props: React.SVGProps<SVGSVGElement>) => {
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
+      <title>Iframe Logo</title>
       <g>
         <g>
           <path

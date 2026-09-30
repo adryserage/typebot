@@ -1,9 +1,9 @@
+import { readFileSync } from "node:fs";
 import { createId } from "@typebot.io/lib/createId";
 import prisma from "@typebot.io/prisma";
 import { DbNull } from "@typebot.io/prisma/enum";
 import type { Prisma } from "@typebot.io/prisma/types";
 import type { Typebot, TypebotV6 } from "@typebot.io/typebot/schemas/typebot";
-import { readFileSync } from "fs";
 import {
   parseTestTypebot,
   parseTypebotToPublicTypebot,
@@ -24,18 +24,20 @@ export const injectFakeResults = async ({
   isChronological,
 }: CreateFakeResultsProps) => {
   const resultIdPrefix = customResultIdPrefix ?? createId();
+  const currentTime = Date.now();
   await prisma.result.createMany({
     data: [
       ...Array.from(Array(count)).map((_, idx) => {
-        const today = new Date();
         const rand = Math.random();
         return {
           id: `${resultIdPrefix}-result${idx}`,
           typebotId,
           createdAt: isChronological
-            ? new Date(
-                today.setTime(today.getTime() + 1000 * 60 * 60 * 24 * idx),
-              )
+            ? createChronologicalResultDate({
+                count,
+                currentTime,
+                index: idx,
+              })
             : new Date(),
           isCompleted: rand > 0.5,
           hasStarted: true,
@@ -45,6 +47,20 @@ export const injectFakeResults = async ({
     ],
   });
   return createAnswers({ resultIdPrefix, count });
+};
+
+const createChronologicalResultDate = ({
+  count,
+  currentTime,
+  index,
+}: {
+  count: number;
+  currentTime: number;
+  index: number;
+}) => {
+  const daysFromToday = count - index - 1;
+
+  return new Date(currentTime - 1000 * 60 * 60 * 24 * daysFromToday);
 };
 
 const createAnswers = ({
@@ -117,7 +133,7 @@ export const createTypebots = async (partialTypebots: Partial<TypebotV6>[]) => {
     return {
       ...typebot,
       id: typebotId,
-      publicId: typebot.publicId ?? typebotId + "-public",
+      publicId: typebot.publicId ?? `${typebotId}-public`,
     };
   });
   await prisma.typebot.createMany({
@@ -142,6 +158,7 @@ export const updateTypebot = async (
     data: {
       ...partialTypebot,
       events: partialTypebot.events === null ? DbNull : partialTypebot.events,
+      updatedAt: new Date(),
     },
   });
 };

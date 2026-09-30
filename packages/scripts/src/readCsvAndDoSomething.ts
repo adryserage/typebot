@@ -1,13 +1,24 @@
+import { readFileSync } from "node:fs";
 import { IntegrationBlockType } from "@typebot.io/blocks-integrations/constants";
 import { parseGroups } from "@typebot.io/groups/helpers/parseGroups";
 import prisma from "@typebot.io/prisma";
 import { Plan } from "@typebot.io/prisma/enum";
 import { SingleBar } from "cli-progress";
-import { readFileSync } from "fs";
 import { parse } from "papaparse";
+import {
+  assertProductionEnvironment,
+  confirmAction,
+  getRequiredInput,
+  runScript,
+} from "./cli";
 
 const main = async () => {
-  const fileContent = readFileSync("./src/files/topTwo.csv").toString();
+  assertProductionEnvironment();
+  const csvPath = await getRequiredInput({
+    message: "CSV path?",
+    name: "csv-path",
+  });
+  const fileContent = readFileSync(csvPath).toString();
   const topTypebots = parse<{
     id: string;
     total_results: number;
@@ -16,6 +27,13 @@ const main = async () => {
   console.log("processing", topTypebots.data.length, "typebots...");
 
   console.log(topTypebots.data);
+
+  if (
+    !(await confirmAction({
+      message: "Update the matching production typebots?",
+    }))
+  )
+    return;
 
   const bar = new SingleBar({});
 
@@ -85,6 +103,7 @@ const main = async () => {
         },
         data: {
           groups: updatedGroups,
+          updatedAt: new Date(),
         },
       });
     }
@@ -93,4 +112,4 @@ const main = async () => {
   bar.stop();
 };
 
-main().then();
+runScript(main);

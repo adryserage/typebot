@@ -1,8 +1,7 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { withSentryConfig } from "@sentry/nextjs";
-import { dirname, join } from "path";
-import "@typebot.io/env/compiled";
 import { configureRuntimeEnv } from "next-runtime-env/build/configure.js";
-import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -33,11 +32,24 @@ injectViewerUrlIfVercelPreview(process.env.NEXT_PUBLIC_VIEWER_URL);
 
 configureRuntimeEnv();
 
+const noStoreHeaders = [
+  {
+    key: "Cache-Control",
+    value: "private, no-cache, no-store, max-age=0, must-revalidate",
+  },
+  {
+    key: "Pragma",
+    value: "no-cache",
+  },
+  {
+    key: "Expires",
+    value: "0",
+  },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  poweredByHeader: false,
   transpilePackages: [
     // https://github.com/nextauthjs/next-auth/discussions/9385#discussioncomment-12023012
     "next-auth",
@@ -51,20 +63,6 @@ const nextConfig = {
     locales: ["en", "fr", "pt", "pt-BR", "de", "ro", "es", "it", "el"],
   },
   outputFileTracingRoot: join(__dirname, "../../"),
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      // TODO: Remove once https://github.com/getsentry/sentry-javascript/issues/8105 is merged and sentry is upgraded
-      config.ignoreWarnings = [
-        ...(config.ignoreWarnings ?? []),
-        {
-          module: /@opentelemetry/,
-          message: /Critical dependency/,
-        },
-      ];
-      return config;
-    }
-    return config;
-  },
   headers: async () => {
     const isDev = process.env.NODE_ENV !== "production";
     return [
@@ -83,39 +81,73 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+              `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:${isDev ? " http://localhost:* " : ""}`,
               "style-src 'self' 'unsafe-inline' https:",
               `connect-src 'self' https: wss:${
                 isDev ? " http://localhost:* ws://localhost:*" : ""
               }`,
-              "frame-src 'self' https:",
+              "frame-src 'self' https: http:",
               `img-src 'self' data: blob: https:${isDev ? " http://localhost:*" : ""}`,
               "font-src 'self' https: data:",
-              "media-src 'self' https:",
+              `media-src 'self' blob: https:${isDev ? " http://localhost:* " : ""}`,
               "worker-src 'self' blob:",
               "object-src 'none'",
+              "frame-ancestors 'self'",
+              "form-action 'self'",
+              "base-uri 'self'",
             ].join("; "),
           },
         ],
       },
+      {
+        source: "/((?!api).*)",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: new URL(
+              process.env.NEXTAUTH_URL || "https://app.typebot.com",
+            ).origin,
+          },
+        ],
+      },
+      ...[
+        "/",
+        "/signin",
+        "/register",
+        "/__ENV.js",
+        "/favicon.svg",
+        "/robots.txt",
+        "/sitemap.xml",
+      ].map((source) => ({
+        source,
+        headers: noStoreHeaders,
+      })),
     ];
   },
   async rewrites() {
     return [
       {
         source: "/healthz",
-        destination: "/api/health",
+        destination: "/api/healthz",
       },
     ];
   },
 };
 
-export default process.env.SENTRY_DSN && process.env.SENTRY_AUTH_TOKEN
-  ? withSentryConfig(nextConfig, {
-      telemetry: false,
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      widenClientFileUpload: true,
-    })
-  : nextConfig;
+export default async function config() {
+  // Avoid loading env package when NX is creating the graph (nx-ignore command)
+  if (global.NX_GRAPH_CREATION) return nextConfig;
+
+  await import("@typebot.io/env/compiled");
+
+  return process.env.SENTRY_DSN
+    ? withSentryConfig(nextConfig, {
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        widenClientFileUpload: true,
+        // Only print logs for uploading source maps in CI
+        silent: !process.env.CI,
+      })
+    : nextConfig;
+}

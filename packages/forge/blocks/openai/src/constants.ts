@@ -1,4 +1,10 @@
 export const ttsModels = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"];
+export const transcriptionModels = [
+  "gpt-4o-transcribe",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-transcribe-diarize",
+  "whisper-1",
+];
 
 export const openAIVoices = [
   "alloy",
@@ -9,7 +15,15 @@ export const openAIVoices = [
   "shimmer",
 ] as const;
 
-export const chatModels = [
+export const models = [
+  "gpt-5.4",
+  "gpt-5.4-pro",
+  "gpt-5.4-mini",
+  "gpt-5.4-nano",
+  "gpt-5.3-chat",
+  "gpt-5.2-pro",
+  "gpt-5.2",
+  "gpt-5.1-chat",
   "gpt-5",
   "gpt-5-mini",
   "gpt-5-nano",
@@ -18,9 +32,12 @@ export const chatModels = [
   "gpt-4.1-nano",
   "gpt-4o",
   "gpt-4o-mini",
+  "o3",
+  "o4-mini",
+  "o3-mini",
+  "o1",
+  "o1-mini",
 ];
-
-export const reasoningModels = ["o3-mini", "o1", "o1-mini"];
 
 export const modelsWithImageUrlSupport = [
   "gpt-5*",

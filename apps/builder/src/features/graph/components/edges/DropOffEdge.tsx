@@ -103,8 +103,8 @@ export const DropOffEdge = ({
   }, [currentBlockId, publishedTypebot?.groups, sourceEndpoints]);
 
   const endpointCoordinates = useMemo(() => {
-    if (!groupId) return undefined;
-    if (!groupCoordinates) return undefined;
+    if (!groupId) return;
+    if (!groupCoordinates) return;
     return computeSourceCoordinates({
       sourcePosition: groupCoordinates,
       sourceTop: sourceTop ?? 0,
@@ -155,38 +155,35 @@ export const DropOffEdge = ({
         <Tooltip.Root>
           <Tooltip.Trigger
             render={
-              <div
-                className={cx(
-                  "flex flex-col items-center rounded-md p-2 justify-center w-full h-full gap-0.5 bg-red-9 text-white",
-                  isWorkspaceProPlan ? "cursor-auto" : "cursor-pointer",
-                )}
-                data-testid={`dropoff-edge-${blockId}`}
-                onClick={isWorkspaceProPlan ? undefined : onUnlockProPlanClick}
-              >
-                <p
-                  className={cx(
-                    "text-sm",
-                    isWorkspaceProPlan ? undefined : "blur-[2px]",
-                  )}
+              isWorkspaceProPlan ? (
+                <div
+                  className="flex flex-col items-center rounded-md p-2 justify-center w-full h-full gap-0.5 bg-red-9 text-white"
+                  data-testid={`dropoff-edge-${blockId}`}
                 >
-                  {isWorkspaceProPlan ? (
-                    dropOffRate
-                  ) : (
-                    <span className="blur-[2px]">X</span>
-                  )}
-                  %
-                </p>
-                <Badge colorScheme="red">
-                  {isWorkspaceProPlan ? (
-                    totalDroppedUser
-                  ) : (
-                    <span className="mr-1 blur-[3px]">NN</span>
-                  )}{" "}
-                  user{(totalDroppedUser ?? 2) > 1 ? "s" : ""}
-                </Badge>
-              </div>
+                  <span className="text-sm">{dropOffRate}%</span>
+                  <Badge colorScheme="red">
+                    {totalDroppedUser} user
+                    {(totalDroppedUser ?? 2) > 1 ? "s" : ""}
+                  </Badge>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="flex flex-col items-center rounded-md p-2 justify-center w-full h-full gap-0.5 bg-red-9 text-white cursor-pointer"
+                  data-testid={`dropoff-edge-${blockId}`}
+                  onClick={onUnlockProPlanClick}
+                >
+                  <span className={cx("text-sm", "blur-[2px]")}>
+                    <span className="blur-[2px]">X</span>%
+                  </span>
+                  <Badge colorScheme="red">
+                    <span className="mr-1 blur-[3px]">NN</span> user
+                    {(totalDroppedUser ?? 2) > 1 ? "s" : ""}
+                  </Badge>
+                </button>
+              )
             }
-          ></Tooltip.Trigger>
+          />
           <Tooltip.Popup>
             {isWorkspaceProPlan ? (
               <>

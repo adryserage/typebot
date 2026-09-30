@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from "@t3-oss/env-core";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 import { getRuntimeVariable } from "./getRuntimeVariable";
@@ -66,11 +67,12 @@ const baseEnv = {
       .url()
       .refine((url) => url.startsWith("postgres") || url.startsWith("mysql")),
     ENCRYPTION_SECRET: z.string().length(32),
+    EMAIL_UNSUBSCRIBE_SECRET: z.string().min(1).optional(),
     NEXTAUTH_URL: z.preprocess(
       guessNextAuthUrlForVercelPreview,
       z.string().url(),
     ),
-    DISABLE_SIGNUP: boolean.optional().default("false"),
+    DISABLE_SIGNUP: boolean.optional().default(false),
     ADMIN_EMAIL: z
       .string()
       .min(1)
@@ -82,7 +84,17 @@ const baseEnv = {
         ["FREE", "STARTER", "PRO", "LIFETIME", "UNLIMITED"].includes(str),
       )
       .default("FREE"),
-    DEBUG: boolean.optional().default("false"),
+    TYPEBOT_DEBUG: boolean.optional().default(false),
+    SSRF_ALLOWED_HOSTS: z
+      .string()
+      .min(1)
+      .transform((val) =>
+        val
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean),
+      )
+      .optional(),
     CHAT_API_TIMEOUT: z.coerce.number().optional(),
     RADAR_HIGH_RISK_KEYWORDS: z
       .string()
@@ -112,6 +124,7 @@ const baseEnv = {
     ),
   },
   client: {
+    NEXT_PUBLIC_BUILDER_ORIGIN: z.string().url().optional(),
     NEXT_PUBLIC_VIEWER_URL: z.preprocess(
       guessViewerUrlForVercelPreview,
       z
@@ -129,6 +142,9 @@ const baseEnv = {
       .default("The bot you're looking for doesn't exist"),
   },
   runtimeEnv: {
+    NEXT_PUBLIC_BUILDER_ORIGIN: getRuntimeVariable(
+      "NEXT_PUBLIC_BUILDER_ORIGIN",
+    ),
     NEXT_PUBLIC_VIEWER_URL: getRuntimeVariable("NEXT_PUBLIC_VIEWER_URL"),
     NEXT_PUBLIC_ONBOARDING_TYPEBOT_ID: getRuntimeVariable(
       "NEXT_PUBLIC_ONBOARDING_TYPEBOT_ID",
@@ -168,8 +184,8 @@ const smtpEnv = {
     SMTP_PASSWORD: z.string().min(1).optional(),
     SMTP_HOST: z.string().min(1).optional(),
     SMTP_PORT: z.coerce.number().optional().default(25),
-    SMTP_AUTH_DISABLED: boolean.optional().default("false"),
-    SMTP_SECURE: boolean.optional().default("false"),
+    SMTP_AUTH_DISABLED: boolean.optional().default(false),
+    SMTP_SECURE: boolean.optional().default(false),
     SMTP_IGNORE_TLS: boolean.optional(),
   },
   client: {
@@ -177,6 +193,12 @@ const smtpEnv = {
   },
   runtimeEnv: {
     NEXT_PUBLIC_SMTP_FROM: getRuntimeVariable("NEXT_PUBLIC_SMTP_FROM"),
+  },
+};
+
+const resendEnv = {
+  server: {
+    RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
   },
 };
 
@@ -286,7 +308,7 @@ const s3Env = {
     S3_BUCKET: z.string().min(1).optional().default("typebot"),
     S3_PORT: z.coerce.number().optional(),
     S3_ENDPOINT: z.string().min(1).optional(),
-    S3_SSL: boolean.optional().default("true"),
+    S3_SSL: boolean.optional().default(true),
     S3_REGION: z.string().min(1).optional(),
     S3_PUBLIC_CUSTOM_DOMAIN: z.string().url().optional(),
   },
@@ -361,6 +383,7 @@ const whatsAppEnv = {
   server: {
     META_SYSTEM_USER_TOKEN: z.string().min(1).optional(),
     WHATSAPP_PREVIEW_FROM_PHONE_NUMBER_ID: z.string().min(1).optional(),
+    WHATSAPP_PREVIEW_APP_SECRET: z.string().min(1).optional(),
     WHATSAPP_PREVIEW_TEMPLATE_NAME: z.string().min(1).optional(),
     WHATSAPP_PREVIEW_TEMPLATE_LANG: z
       .string()
@@ -444,6 +467,9 @@ const keycloakEnv = {
 };
 
 const partykitEnv = {
+  server: {
+    WEBHOOK_RELAY_SECRET: z.string().min(32).optional(),
+  },
   client: {
     NEXT_PUBLIC_PARTYKIT_HOST: z.string().min(1).optional(),
   },
@@ -459,12 +485,40 @@ const inngestEnv = {
   },
 };
 
+const otelEnv = {
+  server: {
+    OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+    OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(),
+    OTEL_EXPORTER_OTLP_SIGNALS: z
+      .enum(["traces", "logs", "both"])
+      .optional()
+      .default("traces"),
+  },
+};
+
+const formatEnvIssues = (issues: readonly StandardSchemaV1.Issue[]) =>
+  issues.reduce<Record<string, string[]>>((acc, issue) => {
+    const path = issue.path?.map((segment) =>
+      isPathSegment(segment) ? String(segment.key) : String(segment),
+    );
+    const key = path?.length ? path.join(".") : "root";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(issue.message);
+    return acc;
+  }, {});
+
+const isPathSegment = (
+  value: StandardSchemaV1.PathSegment | PropertyKey,
+): value is StandardSchemaV1.PathSegment =>
+  typeof value === "object" && value !== null && "key" in value;
+
 export const env = createEnv({
   server: {
     ...baseEnv.server,
     ...githubEnv.server,
     ...facebookEnv.server,
     ...smtpEnv.server,
+    ...resendEnv.server,
     ...googleAuthEnv.server,
     ...googleSheetsEnv.server,
     ...stripeEnv.server,
@@ -481,6 +535,8 @@ export const env = createEnv({
     ...keycloakEnv.server,
     ...posthogEnv.server,
     ...inngestEnv.server,
+    ...otelEnv.server,
+    ...partykitEnv.server,
   },
   client: {
     ...baseEnv.client,
@@ -513,15 +569,11 @@ export const env = createEnv({
   skipValidation:
     process.env.SKIP_ENV_CHECK === "true" ||
     (typeof window !== "undefined" && window.__ENV === undefined),
-  onValidationError(error) {
-    console.error(
-      "❌ Invalid environment variables:",
-      error.flatten().fieldErrors,
-    );
+  onValidationError(issues) {
+    const fieldErrors = formatEnvIssues(issues);
+    console.error("❌ Invalid environment variables:", fieldErrors);
     throw new Error(
-      `Invalid environment variables: ${JSON.stringify(
-        error.flatten().fieldErrors,
-      )}`,
+      `Invalid environment variables: ${JSON.stringify(fieldErrors)}`,
     );
   },
   onInvalidAccess: (variable: string) => {

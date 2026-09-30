@@ -1,12 +1,12 @@
 import { useTranslate } from "@tolgee/react";
 import { isNotDefined } from "@typebot.io/lib/utils";
 import { Button } from "@typebot.io/ui/components/Button";
+import { EmojiOrImageIcon } from "@typebot.io/ui/components/EmojiOrImageIcon";
 import { Copy01Icon } from "@typebot.io/ui/icons/Copy01Icon";
 import { LayoutBottomIcon } from "@typebot.io/ui/icons/LayoutBottomIcon";
 import { PlayIcon } from "@typebot.io/ui/icons/PlayIcon";
 import { useRouter } from "next/router";
 import { ButtonLink } from "@/components/ButtonLink";
-import { EmojiOrImageIcon } from "@/components/EmojiOrImageIcon";
 import { TypebotLogo } from "@/components/TypebotLogo";
 import { useUser } from "@/features/user/hooks/useUser";
 import { useRightPanel } from "@/hooks/useRightPanel";
@@ -57,7 +57,8 @@ export const GuestTypebotHeader = () => {
           {typebot && (
             <EmojiOrImageIcon
               icon={typebot.icon}
-              defaultIcon={LayoutBottomIcon}
+              className="size-6.25 text-2xl"
+              defaultIcon={<LayoutBottomIcon className="size-full" />}
             />
           )}
           <p className="max-w-[150px] overflow-hidden text-[14px] min-w-[30px] min-h-[20px] line-clamp-2">
@@ -72,7 +73,7 @@ export const GuestTypebotHeader = () => {
               href={
                 !user
                   ? {
-                      pathname: `/register`,
+                      pathname: "/register",
                       query: {
                         redirectPath: `/typebots/${typebot.id}/duplicate`,
                       },
@@ -103,7 +104,7 @@ export const GuestTypebotHeader = () => {
           <>
             <hr className="h-6 w-px border-0 bg-gray-6" />
             <ButtonLink
-              href={`/register`}
+              href={"/register"}
               variant="outline-secondary"
               size="sm"
             >

@@ -13,6 +13,7 @@ import {
   Text,
 } from "@react-email/components";
 import { env } from "@typebot.io/env";
+import * as React from "react";
 import {
   container,
   featureSection,
@@ -25,13 +26,15 @@ import {
   text,
 } from "./styles";
 
+void React;
+
 type Props = {
   firstName?: string;
 };
 
 const imagesBaseUrl = `${env.NEXTAUTH_URL}/images/emails/V2dot22Update`;
 
-export const V2dot22Update = ({}: Props) => (
+export const V2dot22Update = (_: Props) => (
   <Html>
     <Head />
     <Preview>January hottest new features on Typebot 🔥</Preview>

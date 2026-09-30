@@ -4,7 +4,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+generator effect {
+  provider         = "bun scripts/effectPrismaGenerator.ts"
+  output           = "../.effect/index.ts"
+  clientImportPath = "@prisma/client"
 }
 
 model Account {
@@ -105,8 +110,21 @@ model Workspace {
   // TODO: remove
   settings                      Json?
   lastActivityAt                DateTime?
-  inactiveFirstEmailSentAt      DateTime?
-  inactiveSecondEmailSentAt     DateTime?
+  spaces                        Space[]
+}
+
+model Space {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  name      String
+  icon      String?
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  typebots    Typebot[]
+
+  @@unique([id, workspaceId])
 }
 
 model MemberInWorkspace {
@@ -161,10 +179,11 @@ model UserCredentials {
 }
 
 model VerificationToken {
-  identifier String
-  token      String   @unique
-  value      String?
-  expires    DateTime
+  identifier     String
+  token          String   @unique
+  value          String?
+  failedAttempts Int      @default(0)
+  expires        DateTime
 
   @@unique([identifier, token])
 }
@@ -213,6 +232,8 @@ model Typebot {
   whatsAppCredentialsId   String?
   riskLevel               Int?
   bannedIps               BannedIp[]
+  space                   Space?                    @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  spaceId                 String?
 
   @@index([workspaceId])
   @@index([isArchived, createdAt(sort: Desc)])
@@ -242,19 +263,22 @@ model CollaboratorsOnTypebots {
 }
 
 model PublicTypebot {
-  id            String                @id @default(cuid())
-  version       String?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @default(now()) @updatedAt
-  typebotId     String                @unique
-  groups        Json
-  events        Json?
-  variables     Json
-  edges         Json
-  theme         Json
-  settings      Json
-  typebot       Typebot               @relation(fields: [typebotId], references: [id], onDelete: Cascade)
-  mediaIdsCache RuntimeMediaIdCache[]
+  id             String                @id @default(cuid())
+  version        String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @default(now())
+  lastActivityAt DateTime?
+  typebotId      String                @unique
+  groups         Json
+  events         Json?
+  variables      Json
+  edges          Json
+  theme          Json
+  settings       Json
+  typebot        Typebot               @relation(fields: [typebotId], references: [id], onDelete: Cascade)
+  mediaIdsCache  RuntimeMediaIdCache[]
+
+  @@index([lastActivityAt])
 }
 
 model RuntimeMediaIdCache {
@@ -416,6 +440,16 @@ model BannedIp {
   responsibleTypebotId String
   user                 User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   userId               String
+}
+
+model SuppressedEmail {
+  id                          String    @id @default(cuid())
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @default(now()) @updatedAt
+  email                       String    @unique
+  transientGeneralBounceCount Int       @default(0)
+  suppressedAt                DateTime?
+  lastWebhookId               String?
 }
 
 enum WorkspaceRole {

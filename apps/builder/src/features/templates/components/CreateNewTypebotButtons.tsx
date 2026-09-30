@@ -10,7 +10,7 @@ import { useRouter } from "next/router";
 import { useState } from "react";
 import { useUser } from "@/features/user/hooks/useUser";
 import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
-import { trpc } from "@/lib/queryClient";
+import { orpc } from "@/lib/queryClient";
 import { ImportTypebotFromFileButton } from "./ImportTypebotFromFileButton";
 import { TemplatesDialog } from "./TemplatesDialog";
 
@@ -24,7 +24,7 @@ export const CreateNewTypebotButtons = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const { mutate: createTypebot } = useMutation(
-    trpc.typebot.createTypebot.mutationOptions({
+    orpc.typebot.createTypebot.mutationOptions({
       onMutate: () => {
         setIsLoading(true);
       },
@@ -40,7 +40,7 @@ export const CreateNewTypebotButtons = () => {
   );
 
   const { mutate: importTypebot } = useMutation(
-    trpc.typebot.importTypebot.mutationOptions({
+    orpc.typebot.importTypebot.mutationOptions({
       onMutate: () => {
         setIsLoading(true);
       },
@@ -55,10 +55,7 @@ export const CreateNewTypebotButtons = () => {
     }),
   );
 
-  const handleCreateSubmit = async (
-    typebot?: Typebot,
-    args?: { enableSafetyFlags?: boolean; fromTemplate?: string },
-  ) => {
+  const handleCreateSubmit = async (typebot?: Typebot) => {
     if (!user || !workspace) return;
     const folderId = router.query.folderId?.toString() ?? null;
     if (typebot)
@@ -68,8 +65,6 @@ export const CreateNewTypebotButtons = () => {
           ...typebot,
           folderId,
         },
-        fromTemplate: args?.fromTemplate,
-        enableSafetyFlags: args?.enableSafetyFlags,
       });
     else
       createTypebot({
@@ -79,6 +74,23 @@ export const CreateNewTypebotButtons = () => {
           folderId,
         },
       });
+  };
+
+  const handleTemplateChoose = ({
+    templateSlug,
+    fromTemplate,
+  }: {
+    templateSlug: string;
+    fromTemplate: string;
+  }) => {
+    if (!user || !workspace) return;
+    const folderId = router.query.folderId?.toString() ?? null;
+    importTypebot({
+      workspaceId: workspace.id,
+      templateSlug,
+      folderId,
+      fromTemplate,
+    });
   };
 
   return (
@@ -121,7 +133,7 @@ export const CreateNewTypebotButtons = () => {
       <TemplatesDialog
         isOpen={isOpen}
         onClose={onClose}
-        onTypebotChoose={handleCreateSubmit}
+        onTemplateChoose={handleTemplateChoose}
         isLoading={isLoading}
       />
     </div>

@@ -1,10 +1,13 @@
 import { useMDXComponent } from "@content-collections/mdx/react";
+import { buttonVariants } from "@typebot.io/ui/components/Button";
+import { ArrowDown01Icon } from "@typebot.io/ui/icons/ArrowDown01Icon";
+import { ArrowUp01Icon } from "@typebot.io/ui/icons/ArrowUp01Icon";
 import { InformationSquareIcon } from "@typebot.io/ui/icons/InformationSquareIcon";
 import { TickIcon } from "@typebot.io/ui/icons/TickIcon";
 import { TriangleAlertIcon } from "@typebot.io/ui/icons/TriangleAlertIcon";
 import { cn } from "@typebot.io/ui/lib/cn";
 import type * as React from "react";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { Cta } from "@/components/cta/Cta";
 import { TextLink } from "@/components/link";
 import { Typebot } from "@/components/Typebot";
@@ -133,7 +136,7 @@ const components = {
       />
     </Suspense>
   ),
-  Youtube: ({ id }: { id: string }) => (
+  YouTube: ({ id }: { id: string }) => (
     <div className="w-full">
       <div className="relative isolate pb-[64.63195691202873%] h-0 w-full">
         <iframe
@@ -147,11 +150,46 @@ const components = {
   ),
   Video: ({ src }: { src: string }) => (
     <div className="w-full">
+      {/* biome-ignore lint/a11y/useMediaCaption: Blog videos currently do not ship with caption files. */}
       <video src={src} className="w-full rounded-xl" controls />
     </div>
   ),
   WhatsAppPricingCalculator,
   HtmlFormGenerator,
+  Details: ({
+    summary,
+    children,
+    defaultOpen,
+  }: {
+    summary: string;
+    children: React.ReactNode;
+    defaultOpen?: boolean;
+  }) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen ?? false);
+
+    return (
+      <details
+        open={defaultOpen}
+        className="rounded-xl border bg-card px-5 py-4 text-card-foreground"
+        onToggle={(event) =>
+          setIsOpen((event.target as HTMLDetailsElement).open)
+        }
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-xl font-medium">
+          {summary}
+          <span
+            className={cn(
+              buttonVariants({ variant: "secondary", size: "icon" }),
+              "shrink-0 [&_svg]:size-5",
+            )}
+          >
+            {isOpen ? <ArrowUp01Icon /> : <ArrowDown01Icon />}
+          </span>
+        </summary>
+        <div className="mt-4 border-t pt-4 [&_pre]:my-0">{children}</div>
+      </details>
+    );
+  },
   Variable: ({ children }: { children: string }) => (
     <code className="bg-gray-300 px-1 py-0.5 rounded-sm text-sm">
       {`{{${children}}}`}

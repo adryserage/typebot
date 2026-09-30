@@ -38,7 +38,10 @@ export const TypebotHeader = () => {
   const handleHelpClick = () => {
     isCloudProdInstance() && workspace?.plan && workspace.plan !== Plan.FREE
       ? onOpen()
-      : window.open("https://docs.typebot.io/guides/how-to-get-help", "_blank");
+      : window.open(
+          "https://docs.typebot.com/guides/how-to-get-help",
+          "_blank",
+        );
   };
 
   if (currentUserMode === "guest") return <GuestTypebotHeader />;
@@ -173,7 +176,7 @@ const LeftElements = ({
               }}
               icon={typebot?.icon}
               onChangeIcon={handleChangeIcon}
-              defaultIcon={LayoutBottomIcon}
+              defaultIcon={<LayoutBottomIcon className="size-full" />}
             />
           )}
           <EditableTypebotName
@@ -256,7 +259,7 @@ const RightElements = ({
 
   const handlePreviewClick = async () => {
     setStartPreviewFrom(undefined);
-    await save();
+    if ((await save()) === "failed") return;
     setRightPanel("preview");
   };
 

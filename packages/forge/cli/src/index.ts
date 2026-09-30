@@ -1,14 +1,14 @@
-import * as p from "@clack/prompts";
-import { isCancel, spinner } from "@clack/prompts";
-import { spawn } from "child_process";
+import { spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   writeFileSync,
-} from "fs";
-import { join } from "path";
+} from "node:fs";
+import { join } from "node:path";
+import * as p from "@clack/prompts";
+import { isCancel, spinner } from "@clack/prompts";
 
 type CliArgs = {
   name?: string;
@@ -283,7 +283,7 @@ const main = async () => {
   s.start("Formatting...");
   try {
     await new Promise<void>((resolve, reject) => {
-      const ls = spawn("bunx", ["turbo", "//#format-and-lint:fix"]);
+      const ls = spawn("bun", ["format-and-lint:fix"]);
       ls.stderr.on("data", (data) => {
         console.log(data.toString());
       });
@@ -339,7 +339,7 @@ export const ${camelCaseName}Block = createBlock({
   id: '${id}',
   name: '${name}',
   tags: [],
-  LightLogo: ${capitalize(camelCaseName)}Logo,${auth !== "none" ? `auth,` : ""}
+  LightLogo: ${capitalize(camelCaseName)}Logo,${auth !== "none" ? "auth," : ""}
   actions: [],
 })
 `,
@@ -362,9 +362,6 @@ const createPackageJson = async (path: string, { id }: { id: unknown }) => {
         dependencies: {
           "@typebot.io/forge": "workspace:*",
         },
-        devDependencies: {
-          "@typebot.io/tsconfig": "workspace:*",
-        },
       },
       null,
       2,
@@ -376,7 +373,7 @@ const createTsConfig = async (path: string) => {
   writeFileSync(
     join(path, "tsconfig.json"),
     JSON.stringify({
-      extends: "@typebot.io/tsconfig/react.json",
+      extends: "../../../../tsconfig.base.json",
       include: ["src/**/*.ts", "src/**/*.tsx"],
     }),
   );
@@ -421,14 +418,16 @@ import type { AuthDefinition } from '@typebot.io/forge/types'
           ${
             rest.type === "apiKey"
               ? `schema: option.object({
-                    apiKey: option.string.layout({
-                      label: 'API key',
-                      isRequired: true,
-                      inputType: 'password',
-                      helperText:
-                        'You can generate an API key [here](<INSERT_URL>).',
-                      withVariableButton: false,
-                      isDebounceDisabled: true,
+                    apiKey: option.string.meta({
+                      layout: {
+                        label: 'API key',
+                        isRequired: true,
+                        inputType: 'password',
+                        helperText:
+                          'You can generate an API key [here](<INSERT_URL>).',
+                        withVariableButton: false,
+                        isDebounceDisabled: true,
+                      },
                     }),
                   }),`
               : rest.type === "oauth"
@@ -459,7 +458,7 @@ const addBlockToRepository = async ({
 };
 
 const createHandlersFile = async (path: string) => {
-  writeFileSync(join(path, "handlers.ts"), `export default []`);
+  writeFileSync(join(path, "handlers.ts"), "export default []");
 };
 
 const createSchemasFile = async (
@@ -618,7 +617,7 @@ ${existingHandlersData.slice(newObjectEntryIndex)}`;
 }
 
 async function addBlockToRepoPackageJson(id: string) {
-  const schemasPath = join(process.cwd(), `../repository`);
+  const schemasPath = join(process.cwd(), "../repository");
   const packageJson = require(join(schemasPath, "package.json"));
   packageJson.dependencies[`@typebot.io/${id}-block`] = "workspace:*";
   writeFileSync(

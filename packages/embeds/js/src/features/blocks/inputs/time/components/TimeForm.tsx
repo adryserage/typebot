@@ -1,9 +1,9 @@
 import type { TimeInputBlock } from "@typebot.io/blocks-inputs/time/schema";
 import { guessDeviceIsMobile } from "@typebot.io/lib/guessDeviceIsMobile";
 import { createSignal, onCleanup, onMount } from "solid-js";
-import { SendButton } from "@/components/SendButton";
-import type { CommandData } from "@/features/commands/types";
-import type { InputSubmitContent } from "@/types";
+import { SendButton } from "../../../../../components/SendButton";
+import type { InputSubmitContent } from "../../../../../types";
+import type { CommandData } from "../../../../commands/types";
 
 type Props = {
   block: TimeInputBlock["options"];
@@ -26,8 +26,9 @@ export const TimeForm = (props: Props) => {
     else inputRef?.focus();
   };
 
-  const submitWhenEnter = (e: KeyboardEvent) => {
-    if (e.key === "Enter") submit();
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    submit();
   };
 
   onMount(() => {
@@ -48,9 +49,9 @@ export const TimeForm = (props: Props) => {
   };
 
   return (
-    <div
+    <form
       class="typebot-input-form flex w-full gap-2 items-end max-w-[350px]"
-      onKeyDown={submitWhenEnter}
+      onSubmit={handleSubmit}
     >
       <div class={"flex typebot-input w-full"}>
         <input
@@ -67,9 +68,9 @@ export const TimeForm = (props: Props) => {
           data-testid="time"
         />
       </div>
-      <SendButton type="button" class="h-[56px]" on:click={submit}>
+      <SendButton type="submit" class="h-14">
         {props.block?.labels?.button}
       </SendButton>
-    </div>
+    </form>
   );
 };

@@ -19,7 +19,7 @@ import {
   setVariableHistoryItemSchema,
   variableWithValueSchema,
 } from "@typebot.io/variables/schemas";
-import { z } from "@typebot.io/zod";
+import { z } from "zod";
 
 const typebotInSessionStatePick = {
   version: true,
@@ -138,10 +138,20 @@ const sessionStateSchemaV3 = sessionStateSchemaV2
   .extend({
     version: z.literal("3"),
     currentBlockId: z.string().optional(),
+    webhookRoom: z.string().optional(),
+    pendingWebhook: z
+      .object({
+        room: z.string(),
+        blockId: z.string(),
+        nonce: z.string(),
+        expiresAt: z.number(),
+      })
+      .optional(),
     allowedOrigins: z.array(z.string()).optional(),
     setVariableIdsForHistory: z.array(z.string()).optional(),
     currentSetVariableHistoryIndex: z.number().optional(),
     workspaceId: z.string(),
+    previewUserId: z.string().optional(),
     previewMetadata: z
       .object({
         answers: z.array(answerSchema).optional(),
@@ -268,5 +278,5 @@ const chatSessionSchema = z.object({
     .describe(
       "Used in WhatsApp runtime to avoid concurrent replies from the bot",
     ),
-}) satisfies z.ZodType<Prisma.ChatSession, z.ZodTypeDef, unknown>;
+}) satisfies z.ZodType<Prisma.ChatSession>;
 export type ChatSession = z.infer<typeof chatSessionSchema>;

@@ -75,10 +75,9 @@ export const Header = ({ isOpened = false, onOpen, onClose }: HeaderProps) => {
           : setAppearance(entry.isIntersecting ? "light" : "dark");
       }, options);
 
-      const elementsToObserve = [
-        ...document.getElementsByTagName("section"),
-        ...document.getElementsByTagName("footer"),
-      ];
+      const elementsToObserve = Array.from(
+        document.getElementsByTagName("section"),
+      ).concat(Array.from(document.getElementsByTagName("footer")));
 
       elementsToObserve.forEach((element) => {
         observer.observe(element);
@@ -250,7 +249,9 @@ const Desktop = React.forwardRef<
   }, []);
 
   useEffect(() => {
-    const separator = document.getElementById("magic-animation-separator");
+    const separator = document.querySelector(
+      "[data-magic-animation-separator]",
+    );
     if (!separator) return;
 
     const observer = new IntersectionObserver(
